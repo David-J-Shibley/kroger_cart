@@ -1,0 +1,323 @@
+:root {
+  /* Kroger brand colors */
+  --kroger-blue: #004BBD;
+  --kroger-blue-hover: #003d99;
+  --kroger-blue-light: #e8effa;
+  --kroger-red: #E42217;
+  --kroger-red-hover: #c41e14;
+  /* Page palette */
+  --bg: #f5f5f5;
+  --card: #ffffff;
+  --text: #1a1a1a;
+  --text-muted: #6b6b6b;
+  --accent: var(--kroger-blue);
+  --accent-hover: var(--kroger-blue-hover);
+  --border: #d1d5db;
+  --radius: 8px;
+  --radius-pill: 9999px;
+  --shadow: 0 1px 3px rgba(0, 75, 189, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 75, 189, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+  min-height: 100vh;
+}
+
+/* Kroger-style header bar */
+.page-header {
+  background: var(--kroger-blue);
+  color: #fff;
+  padding: 16px 24px;
+  margin-bottom: 0;
+  border-radius: 0;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.main-content {
+  padding: 24px;
+}
+
+h2 { font-size: 1.375rem; font-weight: 600; margin: 0 0 16px 0; color: var(--kroger-blue); }
+h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text); }
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+#krogerSignInStatus { margin-bottom: 12px; }
+
+#krogerSignInStatus button,
+.btn-primary {
+  background: var(--kroger-blue);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+#krogerSignInStatus button:hover,
+.btn-primary:hover { background: var(--kroger-blue-hover); }
+
+#krogerSignedIn { color: var(--text-muted); font-size: 0.9375rem; }
+
+#krogerSignedIn button {
+  background: transparent;
+  color: var(--kroger-blue);
+  border: 1px solid var(--kroger-blue);
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  cursor: pointer;
+  margin-left: 8px;
+}
+
+#krogerSignedIn button:hover { background: var(--kroger-blue-light); }
+
+.add-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+/* Kroger-style search / inputs: white, pill-shaped */
+.add-row input[type="text"],
+.add-row input[type="number"] {
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: 0.9375rem;
+  min-width: 160px;
+  background: #fff;
+}
+
+.add-row input::placeholder {
+  color: #9ca3af;
+}
+
+.add-row input:focus {
+  outline: none;
+  border-color: var(--kroger-blue);
+  box-shadow: 0 0 0 3px rgba(0, 75, 189, 0.2);
+}
+
+.add-row button { padding: 10px 20px; border-radius: var(--radius-pill); font-weight: 600; cursor: pointer; }
+
+.help-text {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+  line-height: 1.45;
+}
+
+.help-text code {
+  background: var(--kroger-blue-light);
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.8em;
+  border: 1px solid rgba(0, 75, 189, 0.2);
+  word-break: break-all;
+  color: var(--kroger-blue);
+}
+
+#cart {
+  margin-top: 16px;
+  padding: 14px;
+  background: #fff;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 0.9375rem;
+  min-height: 44px;
+}
+
+#cart:empty::before { content: "Your cart is empty"; color: var(--text-muted); }
+
+.section {
+  margin-top: 8px;
+  padding: 20px;
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.section p { margin: 0 0 12px 0; color: var(--text-muted); font-size: 0.9375rem; }
+
+.section button {
+  padding: 10px 20px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--kroger-blue);
+  color: #fff;
+  border: none;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+
+.section button:hover { background: var(--kroger-blue-hover); }
+
+#loadSavedBtn { background: #fff; color: var(--kroger-blue); border: 1px solid var(--kroger-blue); }
+#loadSavedBtn:hover { background: var(--kroger-blue-light); }
+
+#generated {
+  white-space: pre-wrap;
+  background: #fff;
+  padding: 14px;
+  border-radius: var(--radius);
+  max-height: 360px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+  margin-top: 14px;
+}
+
+#generated p { margin: 0 0 8px 0; }
+
+.add-to-cart-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
+.add-to-cart-section .add-to-cart-heading { margin: 0 0 12px 0; font-size: 1.125rem; font-weight: 600; color: var(--kroger-blue); }
+#generated-list { margin-top: 0; }
+
+.grocery-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+  margin-bottom: 2px;
+  border-radius: var(--radius);
+}
+
+.grocery-line:last-child { border-bottom: none; margin-bottom: 0; }
+.grocery-line .label { flex: 1; font-size: 0.9375rem; color: var(--text); }
+
+.grocery-line button {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: var(--kroger-blue);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.grocery-line button:hover { background: var(--kroger-blue-hover); }
+
+.generated-text { margin: 0; font-family: inherit; color: var(--text); }
+
+button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 75, 189, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-overlay.hidden { display: none; }
+
+.modal-box {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 480px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border);
+}
+
+.modal-box h3 { margin: 0 0 16px 0; font-size: 1.125rem; color: var(--kroger-blue); }
+
+.modal-toolbar {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-toolbar label { font-size: 0.9375rem; color: var(--text-muted); }
+.modal-toolbar select {
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 0.875rem;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.modal-box--metadata { max-width: 560px; }
+.modal-box--metadata pre {
+  margin: 0 0 12px 0;
+  padding: 12px;
+  background: var(--kroger-blue-light);
+  border: 1px solid rgba(0, 75, 189, 0.2);
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  overflow: auto;
+  max-height: 60vh;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.modal-product { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.modal-product:last-child { border-bottom: none; }
+.modal-product .info { flex: 1; min-width: 0; }
+.modal-product .name { font-weight: 500; color: var(--text); }
+.modal-product .price { color: var(--text-muted); font-size: 0.9em; }
+.modal-product .modal-product-actions { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.modal-product button { padding: 8px 14px; border-radius: var(--radius); font-size: 0.875rem; font-weight: 500; cursor: pointer; border: none; }
+.modal-product button.btn-add { background: var(--kroger-blue); color: #fff; font-weight: 600; }
+.modal-product button.btn-add:hover { background: var(--kroger-blue-hover); }
+.modal-product button.btn-meta { background: var(--kroger-blue-light); color: var(--kroger-blue); border: 1px solid rgba(0, 75, 189, 0.3); }
+.modal-product button.btn-meta:hover { background: rgba(0, 75, 189, 0.15); color: var(--kroger-blue-hover); }
+
+.modal-close {
+  margin-top: 16px;
+  width: 100%;
+  padding: 10px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.modal-close:hover { background: var(--border); }

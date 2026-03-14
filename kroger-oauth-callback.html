@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Kroger sign-in</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; max-width: 480px; }
+    .msg { margin: 1rem 0; padding: 0.75rem; border-radius: 8px; }
+    .error { background: #fee; color: #c00; }
+    .success { background: #efe; color: #060; }
+    a { color: #06c; }
+  </style>
+</head>
+<body>
+  <h2>Kroger sign-in</h2>
+  <p id="status">Completing sign-in…</p>
+  <p id="detail"></p>
+  <a id="back" href="/kroger-cart.html" style="display:none;">← Back to cart</a>
+
+  <script>
+    (async function () {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const errorParam = params.get("error");
+
+      if (errorParam) {
+        document.getElementById("status").textContent = "Sign-in was cancelled or failed.";
+        document.getElementById("detail").textContent = "Error: " + (params.get("error_description") || errorParam);
+        document.getElementById("back").style.display = "inline";
+        return;
+      }
+
+      if (!code) {
+        document.getElementById("status").textContent = "No authorization code received.";
+        document.getElementById("detail").innerHTML = "Make sure you started sign-in from the cart page and that the redirect URI in Kroger Developer Portal matches exactly (including http vs https, port, path).";
+        document.getElementById("back").style.display = "inline";
+        return;
+      }
+
+      const clientId = sessionStorage.getItem("krogerOAuthClientId");
+      const clientSecret = sessionStorage.getItem("krogerOAuthClientSecret");
+      sessionStorage.removeItem("krogerOAuthClientId");
+      sessionStorage.removeItem("krogerOAuthClientSecret");
+
+      if (!clientId || !clientSecret) {
+        document.getElementById("status").textContent = "Session expired.";
+        document.getElementById("detail").textContent = "Please go back and click “Sign in with Kroger” again.";
+        document.getElementById("back").style.display = "inline";
+        return;
+      }
+
+      const redirectUri = sessionStorage.getItem("krogerOAuthRedirectUri") || (window.location.origin + "/kroger-oauth-callback.html");
+
+      try {
+        const base = window.location.origin;
+        const res = await fetch(base + "/kroger-api/oauth-exchange", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            code: code,
+            redirectUri: redirectUri,
+            clientId: clientId,
+            clientSecret: clientSecret,
+          }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          document.getElementById("status").textContent = "Token exchange failed.";
+          document.getElementById("detail").textContent = data.error_description || data.error || res.status;
+          document.getElementById("back").style.display = "inline";
+          return;
+        }
+
+        if (!data.access_token) {
+          document.getElementById("status").textContent = "No access token in response.";
+          document.getElementById("detail").textContent = JSON.stringify(data);
+          document.getElementById("back").style.display = "inline";
+          return;
+        }
+
+        const token = String(data.access_token).replace(/\s+/g, "").trim();
+        // Kroger often returns expires_in in seconds (e.g. 1800). Use at least 5 minutes so token isn't immediately expired.
+        const expiresInSec = (data.expires_in != null && data.expires_in > 0) ? data.expires_in : 3600;
+        const expiresIn = Math.max(expiresInSec, 300) * 1000;
+        localStorage.setItem("krogerUserToken", token);
+        localStorage.setItem("krogerUserTokenExpiry", String(Date.now() + expiresIn));
+        if (data.refresh_token) {
+          localStorage.setItem("krogerUserRefreshToken", String(data.refresh_token));
+        }
+
+        document.getElementById("status").className = "msg success";
+        document.getElementById("status").textContent = "Signed in successfully. Redirecting…";
+        window.location.href = "/kroger-cart.html";
+      } catch (e) {
+        document.getElementById("status").textContent = "Request failed.";
+        document.getElementById("detail").className = "msg error";
+        document.getElementById("detail").textContent = e.message || String(e);
+        document.getElementById("back").style.display = "inline";
+      }
+    })();
+  </script>
+</body>
+</html>

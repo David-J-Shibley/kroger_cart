@@ -1,0 +1,35 @@
+# Run Kroger Cart + Ollama in Docker
+# Usage:
+#   docker compose up -d
+#   docker exec -it kroger-cart-ollama-1 ollama pull qwen3:8b   # pull model
+#   Open http://localhost:8000/kroger-cart.html
+
+services:
+  ollama:
+    image: ollama/ollama
+    container_name: kroger-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - kroger-net
+
+  app:
+    build: .
+    container_name: kroger-cart
+    ports:
+      - "8000:8000"
+    environment:
+      - OLLAMA_ORIGIN=http://ollama:11434
+    depends_on:
+      - ollama
+    networks:
+      - kroger-net
+
+volumes:
+  ollama-data:
+
+networks:
+  kroger-net:
+    driver: bridge
