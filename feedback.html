@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feedback</title>
+  <link rel="stylesheet" href="kroger-cart.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="page-header-inner">
+      <div class="page-header-brand">
+        <h1>Feedback</h1>
+        <a class="feedback-link" href="/index.html">← Back to app</a>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <div class="card">
+      <p class="help-text" style="margin-top:0">Suggestions, complaints, or questions — we read every submission.</p>
+      <form id="feedbackForm">
+        <div class="meal-plan-row">
+          <label for="fbCategory">Type</label>
+          <select id="fbCategory" name="category">
+            <option value="suggestion">Suggestion</option>
+            <option value="complaint">Complaint</option>
+            <option value="question">Question</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div class="meal-plan-row meal-plan-row--full">
+          <label for="fbMessage">Message <span class="optional">(required)</span></label>
+          <textarea id="fbMessage" name="message" rows="6" maxlength="8000" required placeholder="What's on your mind?"></textarea>
+        </div>
+        <div class="meal-plan-row meal-plan-row--full">
+          <label for="fbContact">Email <span class="optional">(optional — if you want a reply)</span></label>
+          <input type="email" id="fbContact" name="contact" maxlength="254" autocomplete="email" placeholder="you@example.com">
+        </div>
+        <button type="submit" class="btn-primary" id="fbSubmit">Send feedback</button>
+      </form>
+      <p id="fbStatus" class="help-text" style="margin-top:16px" hidden></p>
+    </div>
+  </main>
+  <script src="api-host-bootstrap.js"></script>
+  <script>
+    function feedbackAuthHeaders() {
+      var t = localStorage.getItem("appCognitoAccessToken");
+      var h = { "Content-Type": "application/json" };
+      if (t) h["Authorization"] = "Bearer " + String(t).replace(/\s+/g, "").trim();
+      return h;
+    }
+
+    document.getElementById("feedbackForm").addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var btn = document.getElementById("fbSubmit");
+      var st = document.getElementById("fbStatus");
+      btn.disabled = true;
+      st.hidden = true;
+      try {
+        var base = await window.krogerCartApiBase();
+        var res = await fetch(base + "/api/feedback", {
+          method: "POST",
+          headers: feedbackAuthHeaders(),
+          body: JSON.stringify({
+            category: document.getElementById("fbCategory").value,
+            message: document.getElementById("fbMessage").value,
+            contact: document.getElementById("fbContact").value.trim() || undefined,
+          }),
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          st.textContent = data.error || ("Error (" + res.status + ")");
+          st.hidden = false;
+          st.style.color = "#b91c1c";
+          btn.disabled = false;
+          return;
+        }
+        st.textContent = "Thanks — we received your feedback.";
+        st.style.color = "";
+        st.hidden = false;
+        document.getElementById("feedbackForm").reset();
+      } catch (err) {
+        st.textContent = err.message || String(err);
+        st.hidden = false;
+        st.style.color = "#b91c1c";
+      }
+      btn.disabled = false;
+    });
+  </script>
+</body>
+</html>

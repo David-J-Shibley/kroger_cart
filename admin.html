@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Feedback</title>
+  <link rel="stylesheet" href="kroger-cart.css">
+  <style>
+    .admin-meta { font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 8px; }
+    .admin-item {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      background: var(--card);
+    }
+    .admin-item pre {
+      margin: 10px 0 0 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.875rem;
+      font-family: inherit;
+    }
+    .admin-denied { color: #991b1b; }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <div class="page-header-inner">
+      <div class="page-header-brand">
+        <h1>Admin</h1>
+        <a class="feedback-link" href="/index.html">← App</a>
+        <a class="feedback-link" href="/feedback.html">Feedback form</a>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <p id="adminGate" class="help-text"></p>
+    <div id="adminContent" hidden>
+      <div class="card">
+        <h2 style="margin-top:0">Feedback submissions</h2>
+        <p class="help-text">Newest first (from <code>FEEDBACK_TABLE</code>). Requires DynamoDB and app sign-in.</p>
+        <p id="adminListStatus" class="help-text"></p>
+        <div id="adminList"></div>
+      </div>
+    </div>
+  </main>
+  <script src="api-host-bootstrap.js"></script>
+  <script>
+    function authHeaders() {
+      var t = localStorage.getItem("appCognitoAccessToken");
+      var h = {};
+      if (t) h["Authorization"] = "Bearer " + String(t).replace(/\s+/g, "").trim();
+      return h;
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    (async function () {
+      var base = await window.krogerCartApiBase();
+      var gate = document.getElementById("adminGate");
+      var content = document.getElementById("adminContent");
+      var listEl = document.getElementById("adminList");
+      var listStatus = document.getElementById("adminListStatus");
+
+      var st = await fetch(base + "/api/admin/status", { headers: authHeaders() });
+      if (st.status === 401) {
+        gate.innerHTML =
+          '<span class="admin-denied">Sign in with the app account first.</span> <a href="/auth.html">Sign in</a> · <a href="/index.html">Home</a>';
+        return;
+      }
+      var sj = await st.json().catch(function () { return {}; });
+      if (!sj.admin) {
+        gate.innerHTML =
+          '<span class="admin-denied">You do not have access to this page.</span> <a href="/index.html">Home</a>';
+        return;
+      }
+      gate.textContent = "";
+      content.hidden = false;
+
+      listStatus.textContent = "Loading…";
+      var fr = await fetch(base + "/api/admin/feedback?limit=100", { headers: authHeaders() });
+      var fj = await fr.json().catch(function () { return {}; });
+      if (!fr.ok) {
+        if (fr.status === 401) {
+          listStatus.textContent = "Session expired — sign in again.";
+          return;
+        }
+        if (fr.status === 403) {
+          listStatus.textContent = "Forbidden.";
+          return;
+        }
+        listStatus.textContent = fj.error || "Could not load feedback (" + fr.status + ").";
+        return;
+      }
+      listStatus.textContent = (fj.items && fj.items.length) ? fj.items.length + " item(s)." : "No rows (empty table or FEEDBACK_TABLE not used yet).";
+      if (!fj.items || !fj.items.length) {
+        listEl.innerHTML = "";
+        return;
+      }
+      listEl.innerHTML = fj.items
+        .map(function (row) {
+          var id = row.id != null ? String(row.id) : "";
+          var cat = row.category != null ? String(row.category) : "";
+          var at = row.createdAt != null ? String(row.createdAt) : "";
+          var uid = row.userId != null ? String(row.userId) : "";
+          var contact = row.contact != null ? String(row.contact) : "";
+          var msg = row.message != null ? String(row.message) : "";
+          var ua = row.userAgent != null ? String(row.userAgent) : "";
+          return (
+            '<div class="admin-item">' +
+            '<div class="admin-meta"><strong>' +
+            escapeHtml(cat) +
+            "</strong> · " +
+            escapeHtml(at) +
+            " · id " +
+            escapeHtml(id) +
+            (uid ? " · user " + escapeHtml(uid) : "") +
+            (contact ? " · " + escapeHtml(contact) : "") +
+            "</div>" +
+            (ua ? '<div class="admin-meta">UA: ' + escapeHtml(ua.slice(0, 200)) + (ua.length > 200 ? "…" : "") + "</div>" : "") +
+            "<pre>" +
+            escapeHtml(msg) +
+            "</pre></div>"
+          );
+        })
+        .join("");
+    })();
+  </script>
+</body>
+</html>

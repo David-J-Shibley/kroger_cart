@@ -1,20 +1,19 @@
 # Kroger Cart — run the app in Docker
 # Build: docker build -t kroger-cart .
-# Run:   docker run -p 8000:8000 kroger-cart
+# Run:   docker run -p 8000:8000 --env-file .env kroger-cart
 
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies (include devDependencies for tsx and tsc)
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# Copy source and config
-COPY server.ts kroger-cart.ts tsconfig.client.json ./
-COPY kroger-cart.html kroger-cart.css kroger-oauth-callback.html ./
+COPY server.ts tsconfig.json tsconfig.client.json ./
+COPY server ./server/
+COPY client ./client/
+COPY index.html kroger-cart.css api-host-bootstrap.js kroger-oauth-callback.html auth.html auth-callback.html feedback.html admin.html ./
 
-# Build client JS (produces dist/kroger-cart.js)
 RUN npm run build:client
 
 EXPOSE 8000

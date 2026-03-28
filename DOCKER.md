@@ -12,7 +12,7 @@ docker build -t kroger-cart .
 docker run -p 8000:8000 kroger-cart
 ```
 
-Then open **http://localhost:8000/kroger-cart.html**.
+Then open **http://localhost:8000/index.html**.
 
 ### Custom port
 
@@ -22,7 +22,7 @@ To use a different host port (e.g. 8888):
 docker run -p 8888:8000 -e PORT=8000 kroger-cart
 ```
 
-Then open **http://localhost:8888/kroger-cart.html**. (The container still listens on 8000; `-p 8888:8000` maps host 8888 → container 8000.)
+Then open **http://localhost:8888/index.html**. (The container still listens on 8000; `-p 8888:8000` maps host 8888 → container 8000.)
 
 To change the port inside the container:
 
@@ -55,7 +55,7 @@ Run Ollama normally on your machine (Ollama app or `ollama serve`). Then point t
   ```bash
   docker run --network host -e OLLAMA_ORIGIN=http://127.0.0.1:11434 kroger-cart
   ```
-  Then open **http://localhost:8000/kroger-cart.html**.
+  Then open **http://localhost:8000/index.html**.
 
 #### Option B: Ollama in Docker too
 
@@ -72,7 +72,7 @@ docker run -d --name ollama --network kroger-net -p 11434:11434 ollama/ollama
 docker run -p 8000:8000 --network kroger-net -e OLLAMA_ORIGIN=http://ollama:11434 kroger-cart
 ```
 
-Then open **http://localhost:8000/kroger-cart.html**. Use `docker exec -it ollama ollama pull <model>` to pull models (e.g. `qwen3:8b`) into the Ollama container.
+Then open **http://localhost:8000/index.html**. Use `docker exec -it ollama ollama pull <model>` to pull models (e.g. `qwen3:8b`) into the Ollama container.
 
 **Or use Docker Compose** (both app + Ollama, one command):
 
@@ -81,7 +81,7 @@ docker compose up -d
 docker exec -it kroger-ollama ollama pull qwen3:8b   # pull model once
 ```
 
-Then open **http://localhost:8000/kroger-cart.html**. Models are stored in the `ollama-data` volume.
+Then open **http://localhost:8000/index.html**. Models are stored in the `ollama-data` volume.
 
 ---
 

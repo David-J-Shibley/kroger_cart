@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in</title>
+  <link rel="stylesheet" href="kroger-cart.css">
+  <style>body { max-width: 720px; margin: 2rem auto; padding: 0 24px; }</style>
+</head>
+<body>
+  <p id="msg">Checking session…</p>
+  <p><a href="/index.html">← Back to app</a> · <a href="/feedback.html">Feedback</a></p>
+  <script src="api-host-bootstrap.js"></script>
+  <script>
+    (async function () {
+      var base = await window.krogerCartApiBase();
+      if (localStorage.getItem("appCognitoAccessToken")) {
+        window.location.replace("/index.html");
+        return;
+      }
+      fetch(base + "/api/public-config")
+        .then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then(function (c) {
+          if (!c.authRequired) {
+            document.getElementById("msg").textContent = "App sign-in is disabled. Redirecting…";
+            window.location.replace("/index.html");
+            return;
+          }
+          if (!c.cognitoDomain || !c.cognitoClientId) {
+            document.getElementById("msg").textContent =
+              "Cognito is not configured (COGNITO_DOMAIN / COGNITO_CLIENT_ID on the server).";
+            return;
+          }
+          var scope = encodeURIComponent("openid email phone");
+          var redirect = encodeURIComponent(c.cognitoRedirectUri);
+          var clientId = encodeURIComponent(c.cognitoClientId);
+          var state = Math.random().toString(36).slice(2) + Date.now().toString(36);
+          sessionStorage.setItem("cognitoOAuthState", state);
+          var url =
+            "https://" + c.cognitoDomain + "/oauth2/authorize" +
+            "?client_id=" + clientId +
+            "&response_type=code" +
+            "&scope=" + scope +
+            "&redirect_uri=" + redirect +
+            "&state=" + encodeURIComponent(state);
+          document.getElementById("msg").textContent = "Redirecting to sign-in…";
+          window.location.href = url;
+        })
+        .catch(function (e) {
+          document.getElementById("msg").textContent = "Failed to load config: " + (e && e.message ? e.message : e);
+        });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signing you in</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 480px; }
+    .err { color: #b91c1c; }
+  </style>
+</head>
+<body>
+  <p id="status">Completing sign-in…</p>
+  <p id="detail" class="err"></p>
+  <p><a id="back" href="/index.html" style="display:none;">← Back to app</a></p>
+  <script src="api-host-bootstrap.js"></script>
+  <script>
+    (async function () {
+      var base = await window.krogerCartApiBase();
+      var params = new URLSearchParams(window.location.search);
+      var code = params.get("code");
+      var err = params.get("error");
+      if (err) {
+        document.getElementById("status").textContent = "Sign-in failed.";
+        document.getElementById("detail").textContent = params.get("error_description") || err;
+        document.getElementById("back").style.display = "inline";
+        return;
+      }
+      if (!code) {
+        document.getElementById("status").textContent = "No authorization code.";
+        document.getElementById("back").style.display = "inline";
+        return;
+      }
+      var stored = sessionStorage.getItem("cognitoOAuthState");
+      if (params.get("state") !== stored) {
+        document.getElementById("status").textContent = "State mismatch — try signing in again.";
+        document.getElementById("back").style.display = "inline";
+        return;
+      }
+      sessionStorage.removeItem("cognitoOAuthState");
+      try {
+        var cfg = await fetch(base + "/api/public-config").then(function (r) { return r.json(); });
+        var redirectUri = cfg.cognitoRedirectUri;
+        var res = await fetch(base + "/api/auth/cognito-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code, redirectUri: redirectUri }),
+        });
+        var data = await res.json();
+        if (!res.ok) {
+          document.getElementById("status").textContent = "Token exchange failed.";
+          document.getElementById("detail").textContent =
+            (data.error_description || data.message || data.error || JSON.stringify(data));
+          document.getElementById("back").style.display = "inline";
+          return;
+        }
+        if (!data.access_token) {
+          document.getElementById("status").textContent = "No access token in response.";
+          document.getElementById("detail").textContent = JSON.stringify(data);
+          document.getElementById("back").style.display = "inline";
+          return;
+        }
+        localStorage.setItem("appCognitoAccessToken", String(data.access_token).replace(/\s+/g, "").trim());
+        if (data.refresh_token) {
+          localStorage.setItem("appCognitoRefreshToken", String(data.refresh_token).trim());
+        }
+        window.location.replace("/index.html");
+      } catch (e) {
+        document.getElementById("status").textContent = "Request failed.";
+        document.getElementById("detail").textContent = e.message || String(e);
+        document.getElementById("back").style.display = "inline";
+      }
+    })();
+  </script>
+</body>
+</html>

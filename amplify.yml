@@ -1,0 +1,31 @@
+# AWS Amplify Hosting — static UI only. Express API must run elsewhere (ECS, etc.).
+#
+# Build env (Amplify Console → Environment variables):
+#   API_PUBLIC_URL = https://your-api.example.com   (no trailing slash)
+# Produces deploy-config.json so the browser calls the API cross-origin.
+# On the API host set BROWSER_CORS_ORIGINS = https://main.xxx.amplifyapp.com (comma-sep if multiple).
+#
+# AMPLIFY_WEB_ROOT: use same line as npm run build (fresh shell per command).
+# General → Platform: WEB (static), not WEB_DYNAMIC.
+
+version: 1
+env:
+  variables:
+    AMPLIFY_WEB_ROOT: amplify-static
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - AMPLIFY_WEB_ROOT=amplify-static npm run build
+        - ls -la amplify-static
+        - test -f amplify-static/index.html && test -f amplify-static/dist/kroger-cart.js
+  artifacts:
+    baseDirectory: amplify-static
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - node_modules/**/*

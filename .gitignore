@@ -1,2 +1,7 @@
 /node_modules
 /dist
+.env
+.env.local
+
+# Capacitor: generated bundle for native projects (run npm run cap:prepare)
+/www

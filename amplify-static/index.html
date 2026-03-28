@@ -1,0 +1,89 @@
+<!DOCTYPE html>                                                               
+   <html>                                                                        
+   <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meal Plan & Grocery List</title>
+    <link rel="stylesheet" href="kroger-cart.css">
+  </head>
+   <body>
+    <header class="page-header">
+      <div class="page-header-inner">
+        <div class="page-header-brand">
+          <h1>Meal Plan & Grocery List</h1>
+          <a class="feedback-link" href="/feedback.html">Feedback</a>
+          <a id="adminLink" class="feedback-link" href="/admin.html" style="display:none">Admin</a>
+        </div>
+        <div id="accountAppBar" class="account-app-bar" style="display:none;">
+          <span id="accountStatus" class="account-status"></span>
+          <button type="button" id="btnAppSignIn" class="btn-app-auth" onclick="goAppSignIn()">Sign in</button>
+          <button type="button" id="btnSubscribe" class="btn-app-auth" onclick="subscribeToPlan()">Subscribe</button>
+          <button type="button" id="btnBillingPortal" class="btn-app-auth btn-app-auth--ghost" onclick="openBillingPortal()">Billing</button>
+          <button type="button" id="btnAppSignOut" class="btn-app-auth btn-app-auth--ghost" onclick="signOutApp()">Sign out</button>
+        </div>
+      </div>
+    </header>
+    <main class="main-content">
+      <p id="bootError" class="boot-error" hidden></p>
+      <div class="card">
+        <p id="krogerSignInStatus">
+             <button type="button" id="krogerSignInBtn" onclick="signInWithKroger()">Sign in with Kroger</button>
+             <span id="krogerSignedIn" style="display:none;">Signed in. <button type="button" onclick="signOutKroger()">Sign out</button></span>
+         </p>
+       </div>
+
+       <div id="productPickerModal" class="modal-overlay hidden" aria-hidden="true" onclick="if(event.target===this)closeProductPicker()">
+           <div class="modal-box" onclick="event.stopPropagation()">
+               <h3 id="productPickerTitle">Choose a product</h3>
+               <div id="productPickerToolbar" class="modal-toolbar"></div>
+               <div id="productPickerList"></div>
+               <button type="button" class="modal-close" onclick="closeProductPicker()">Close</button>
+           </div>
+       </div>
+
+       <div id="productMetadataModal" class="modal-overlay hidden" aria-hidden="true" onclick="if(event.target===this)closeProductMetadata()">
+           <div class="modal-box modal-box--metadata" onclick="event.stopPropagation()">
+               <h3>Product metadata</h3>
+               <pre id="productMetadataPre"></pre>
+               <button type="button" class="modal-close" onclick="closeProductMetadata()">Close</button>
+           </div>
+       </div>
+
+       <div class="section">
+           <h3>Generate grocery list</h3>
+           <p>Use your LLM (Ollama, proxied by this app) to build a meal plan and one consolidated grocery list. Adjust options below, then generate.</p>
+           <div class="meal-plan-options" id="mealPlanOptions">
+             <div class="meal-plan-row">
+               <label for="mealPlanPeople">People</label>
+               <input type="number" id="mealPlanPeople" min="1" max="16" value="3" title="How many people you are feeding">
+             </div>
+             <div class="meal-plan-row">
+               <label for="mealPlanDays">Days</label>
+               <input type="number" id="mealPlanDays" min="1" max="14" value="7" title="Length of the meal plan (e.g. one week = 7)">
+             </div>
+             <div class="meal-plan-row meal-plan-row--full">
+               <label for="mealPlanScope">Meals per day</label>
+               <select id="mealPlanScope" title="Which meals to include each day">
+                 <option value="all">Breakfast, lunch & dinner</option>
+                 <option value="lunch_dinner">Lunch & dinner only</option>
+                 <option value="dinner_only">Dinner only</option>
+               </select>
+             </div>
+             <div class="meal-plan-row meal-plan-row--full">
+               <label for="mealPlanNotes">Dietary notes & preferences <span class="optional">(optional)</span></label>
+               <textarea id="mealPlanNotes" rows="3" maxlength="800" placeholder="e.g. vegetarian, nut allergy, kid-friendly, low sodium, budget-friendly…"></textarea>
+             </div>
+           </div>
+           <button id="generateBtn" onclick="generateGroceryList()">Generate meal plan & grocery list</button>
+           <button id="loadSavedBtn" type="button" onclick="loadSavedLLM()" style="margin-left: 8px; display: none;">Load saved</button>
+           <div id="generated" style="margin-top: 12px; display: none;"></div>
+           <div id="add-to-cart-section" class="add-to-cart-section" style="display: none;">
+             <h3 class="add-to-cart-heading">Add to cart</h3>
+             <div id="generated-list"></div>
+           </div>
+      </div>
+    </main>
+                                                                                 
+      <script type="module" src="dist/kroger-cart.js"></script>
+   </body>
+   </html>

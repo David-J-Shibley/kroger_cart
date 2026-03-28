@@ -2,7 +2,6 @@
 
 Generate a weekly meal plan and grocery list with a local LLM (Ollama), then add items to your **Kroger** cart in one click. Sign in with your Kroger account, pick products when there are multiple matches, and keep your cart in sync—all from a single page.
 
-![Kroger blue theme](https://img.shields.io/badge/Kroger-004BBD?style=flat&logo=kroger)
 
 ## Features
 
@@ -33,15 +32,19 @@ Generate a weekly meal plan and grocery list with a local LLM (Ollama), then add
    npm run build:client
    ```
 
-3. **Add your Kroger credentials**
+3. **Add your Kroger credentials (server only — never in the browser bundle)**
 
-   Edit `kroger-cart.ts` and set:
+   ```bash
+   cp .env.example .env
+   ```
 
-   - `CLIENT_ID` — from Kroger Developer Portal  
-   - `CLIENT_SECRET` — from Kroger Developer Portal  
-   - `KROGER_REDIRECT_URI` — must match exactly what you add in the portal (e.g. `http://localhost:8000/kroger-oauth-callback.html`)
+   Edit `.env` and set at least:
 
-   Rebuild after changing: `npm run build:client`
+   - `KROGER_CLIENT_ID` — from Kroger Developer Portal  
+   - `KROGER_CLIENT_SECRET` — from Kroger Developer Portal (stays on the server)  
+   - Optionally `KROGER_REDIRECT_URI` — must match the portal exactly (if omitted locally, the server derives `http://localhost:8000/kroger-oauth-callback.html` from the request)
+
+   Rebuild the client if you only changed TypeScript: `npm run build:client`
 
 4. **Start the server**
 
@@ -65,7 +68,7 @@ docker exec -it kroger-ollama ollama pull qwen3:8b   # pull the default model
 ```
 
 Open **http://localhost:8000/kroger-cart.html**.  
-You still need to put your Kroger Client ID and Secret in the client (see above) and rebuild the image, or build your own image with credentials baked in for your environment.
+Pass `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` into the app container (env file or compose `environment:`), not into the client bundle.
 
 For more options (Ollama on host, custom port, 502 troubleshooting), see **[DOCKER.md](DOCKER.md)**.
 
@@ -75,7 +78,7 @@ For more options (Ollama on host, custom port, 502 troubleshooting), see **[DOCK
 2. Under **Redirect URIs**, add the exact URL your app uses for the OAuth callback, e.g.:
    - Local: `http://localhost:8000/kroger-oauth-callback.html`
    - Production: `https://your-domain.com/kroger-oauth-callback.html`
-3. Copy **Client ID** and **Client Secret** into `kroger-cart.ts` (and rebuild).
+3. Copy **Client ID** and **Client Secret** into the **server** environment (`.env` or your host’s secret store), not the frontend.
 4. Ensure your app has access to **Products** (for search) and **Cart** (for add); the OAuth scope used is `product.compact` and `cart.basic:write`.
 
 The in-app help text shows the redirect URI the client expects so you can match it in the portal.
@@ -84,12 +87,14 @@ The in-app help text shows the redirect URI the client expects so you can match 
 
 | What | Where | Default |
 |------|--------|--------|
-| Ollama model | `kroger-cart.ts` → `OLLAMA_MODEL` | `qwen3:8b` |
-| Kroger store (location ID) | `kroger-cart.ts` → `KROGER_LOCATION_ID` | (set for your store) |
-| Server port | `PORT` env or server default | `8000` |
-| Ollama URL (Docker) | `OLLAMA_ORIGIN` env | `http://127.0.0.1:11434` |
+| Kroger ID / secret | Server env: `KROGER_CLIENT_ID`, `KROGER_CLIENT_SECRET` | (required) |
+| OAuth redirect | `KROGER_REDIRECT_URI` or derived from request | see `.env.example` |
+| Ollama model name | `OLLAMA_MODEL` | `qwen3:8b` |
+| Kroger store (location ID) | `KROGER_LOCATION_ID` | optional |
+| Server port | `PORT` | `8000` |
+| Ollama URL (proxy target) | `OLLAMA_ORIGIN` | `http://127.0.0.1:11434` |
 
-Change client options in `kroger-cart.ts`, then run `npm run build:client` (and rebuild the Docker image if you use Docker).
+The browser loads **public** settings from `GET /api/public-config` (no secrets). See `.env.example`.
 
 ## Project structure
 
@@ -98,7 +103,7 @@ Change client options in `kroger-cart.ts`, then run `npm run build:client` (and 
 | `server.ts` | Express server: static files, Ollama proxy, Kroger proxy + OAuth exchange/refresh |
 | `kroger-cart.html` | Single-page UI |
 | `kroger-cart.css` | Styles |
-| `kroger-cart.ts` | Client logic (TypeScript) → built to `dist/kroger-cart.js` |
+| `client/` | Browser app source (TypeScript modules); `npm run build:client` typechecks with `tsc` and bundles to `dist/kroger-cart.js` with esbuild |
 | `kroger-oauth-callback.html` | OAuth redirect; exchanges code for tokens |
 | `DOCKER.md` | Docker runbook |
 | `ARCHITECTURE.md` | Technical overview, decisions, and APIs |
@@ -106,12 +111,14 @@ Change client options in `kroger-cart.ts`, then run `npm run build:client` (and 
 ## Scripts
 
 - `npm start` — Run the server (tsx)
-- `npm run build:client` — Compile `kroger-cart.ts` → `dist/kroger-cart.js`
+- `npm run build:client` — Typecheck client with `tsc`, bundle `client/kroger-cart.ts` → `dist/kroger-cart.js` (ESM)
 
 ## Documentation
 
 - **[DOCKER.md](DOCKER.md)** — Running with Docker, Ollama in/out of containers, 502 fixes.
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — How the app is built, technical decisions, Kroger/Ollama integration, security notes.
+- **[SAAS-NEXT-STEPS.md](SAAS-NEXT-STEPS.md)** — Roadmap for hosted SaaS: auth, billing, legal, ops.
+- **[AWS-DEPLOY.md](AWS-DEPLOY.md)** — Cognito, DynamoDB, Stripe webhooks, ECS/ALB, monitoring on AWS.
 
 ## License
 

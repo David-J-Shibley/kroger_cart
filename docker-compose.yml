@@ -2,7 +2,7 @@
 # Usage:
 #   docker compose up -d
 #   docker exec -it kroger-cart-ollama-1 ollama pull qwen3:8b   # pull model
-#   Open http://localhost:8000/kroger-cart.html
+#   Open http://localhost:8000/index.html
 
 services:
   ollama:
@@ -20,8 +20,12 @@ services:
     container_name: kroger-cart
     ports:
       - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
     environment:
       - OLLAMA_ORIGIN=http://ollama:11434
+      # Other vars (AUTH_REQUIRED, Cognito, Kroger, etc.) come from .env via env_file above.
     depends_on:
       - ollama
     networks:

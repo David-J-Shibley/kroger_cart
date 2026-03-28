@@ -6,10 +6,9 @@
     "strict": true,
     "skipLibCheck": true,
     "lib": ["ES2020", "DOM"],
-    "outDir": "dist",
-    "rootDir": ".",
+    "noEmit": true,
     "noEmitOnError": true
   },
-  "include": ["kroger-cart.ts"],
+  "include": ["client/**/*.ts"],
   "exclude": ["node_modules", "server.ts"]
 }

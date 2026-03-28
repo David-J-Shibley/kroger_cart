@@ -17,7 +17,7 @@ This document describes how the app was built, the main technical decisions, and
 | Layer        | Choice                    | Notes                                      |
 |-------------|----------------------------|--------------------------------------------|
 | Server      | Node.js + Express          | TypeScript, run with `tsx` (no separate compile step). |
-| Client      | Vanilla TS → JS            | Single bundle `dist/kroger-cart.js`, no framework.     |
+| Client      | Vanilla TS → JS            | Modular source under `client/`; **esbuild** bundles to one `dist/kroger-cart.js` (ESM). No UI framework. |
 | Styling     | Plain CSS                  | One file `kroger-cart.css`, CSS variables for theme.  |
 | LLM         | Ollama                     | Local inference; streaming `/api/chat`.               |
 | APIs        | Kroger Products + Cart API | Products (search), Cart (add), OAuth for user context.|
@@ -32,10 +32,10 @@ krogerCart/
 ├── server.ts              # Express server: static files, Ollama proxy, Kroger proxy + OAuth
 ├── kroger-cart.html       # Single-page UI
 ├── kroger-cart.css        # Styles (Kroger-inspired theme)
-├── kroger-cart.ts         # Client logic (TypeScript)
-├── tsconfig.client.json   # TS config for client bundle only
+├── client/                # Browser app (TypeScript modules; see client/kroger-cart.ts entry)
+├── tsconfig.client.json   # Client typecheck (noEmit); build uses esbuild bundle
 ├── dist/
-│   └── kroger-cart.js     # Built client (npm run build:client)
+│   └── kroger-cart.js     # Bundled client (npm run build:client)
 ├── kroger-oauth-callback.html   # OAuth redirect target; exchanges code for tokens
 ├── package.json
 ├── Dockerfile             # Build app image
@@ -52,7 +52,7 @@ The server serves the directory as static files and mounts two proxy “prefixes
 
 ### High level
 
-1. **Browser** loads `kroger-cart.html`, which loads `kroger-cart.css` and `dist/kroger-cart.js`.
+1. **Browser** loads `kroger-cart.html`, which loads `kroger-cart.css` and `dist/kroger-cart.js` as **`type="module"`** (single bundled ESM file so `file://` and static hosting behave predictably).
 2. **LLM path:** Client POSTs to `/ollama-api/api/chat` (streaming). Server proxies to `OLLAMA_ORIGIN` (e.g. `http://ollama:11434` in Docker). Response is streamed back; client parses SSE-like newline-delimited JSON and renders the meal plan + parses out grocery lines.
 3. **Kroger path:**  
    - **Product search:** Client uses an **app access token** (client credentials) to call the server’s Kroger proxy (`/kroger-api/v1/products?...`). Server forwards to Kroger with that token.  
@@ -71,12 +71,12 @@ The server serves the directory as static files and mounts two proxy “prefixes
 
 ### 1. No front-end framework
 
-The UI is one HTML file, one CSS file, and one JS bundle. Buttons use `onclick` handlers that call global functions attached to `window`. This keeps the app small, build simple (`tsc` for the client only), and avoids a heavy runtime. Tradeoff: no reactive bindings or component model; state is in module-level variables and DOM.
+The UI is one HTML file, one CSS file, and one JS bundle. Buttons use `onclick` handlers that call global functions attached to `window` from the entry module (`client/kroger-cart.ts`). Source is split into small modules (auth, cart, picker, meal plan, LLM UI); **esbuild** bundles them for the browser. Tradeoff: no reactive bindings or component model; shared state lives in `app-state.ts`, `picker-context.ts`, and the DOM.
 
 ### 2. Client in TypeScript, server in TypeScript
 
 - **Server:** Run with `tsx` so we don’t compile to JS; `server.ts` is executed directly.  
-- **Client:** Compiled with `tsc -p tsconfig.client.json` to `dist/kroger-cart.js` (ES2020, DOM lib). Types (e.g. `KrogerProduct`, `KrogerCartResponse`) live in the client TS and improve maintainability; the compiled JS is loaded by the HTML.
+- **Client:** Typechecked with `tsc -p tsconfig.client.json` (`noEmit`), then bundled with **esbuild** from `client/kroger-cart.ts` to `dist/kroger-cart.js` (ES2020 target, ESM). Types live in `client/types.ts` and per-module imports; the HTML loads the single bundle as a module script.
 
 ### 3. Two Kroger tokens
 
@@ -122,8 +122,8 @@ Kroger’s cart add endpoint can return 200 with an **empty body** or non-JSON. 
 ### 11. Static assets and build
 
 - HTML/CSS are static.  
-- Client is the only built artifact: `kroger-cart.ts` → `dist/kroger-cart.js`.  
-- The server serves `__dirname` (the project root), so `kroger-cart.html`, `kroger-cart.css`, `dist/kroger-cart.js`, and `kroger-oauth-callback.html` are all served as-is. No bundler, no hashed filenames; cache headers are Express defaults.
+- Client build output is a single file: `client/**/*.ts` (entry `client/kroger-cart.ts`) → `dist/kroger-cart.js` via esbuild.  
+- The server serves `__dirname` (the project root), so `kroger-cart.html`, `kroger-cart.css`, `dist/kroger-cart.js`, and `kroger-oauth-callback.html` are all served as-is. No hashed filenames; cache headers are Express defaults.
 
 ### 12. Docker and deployment
 
@@ -135,7 +135,7 @@ Kroger’s cart add endpoint can return 200 with an **empty body** or non-JSON. 
 
 ## Security and credentials
 
-- **Kroger:** Client ID and client secret are currently in the client bundle (`kroger-cart.ts`). Redirect URI is set in the client and must match exactly what is configured in Kroger Developer Portal. For a production deployment you would:
+- **Kroger:** Client ID and client secret are currently in the client bundle (`client/config.ts`). Redirect URI is set in the client and must match exactly what is configured in Kroger Developer Portal. For a production deployment you would:
   - Move client credentials to the server only.
   - Issue app and user tokens (and refresh) on the server; the client would receive only opaque session cookies or short-lived tokens.
 - **OAuth state:** We store a random state in sessionStorage before redirecting to Kroger and check it in the callback to mitigate CSRF.  
@@ -151,7 +151,7 @@ Kroger’s cart add endpoint can return 200 with an **empty body** or non-JSON. 
 | `HOST`                     | Server   | Listen host (default `0.0.0.0`). |
 | `OLLAMA_ORIGIN`            | Server   | Base URL for Ollama (e.g. `http://ollama:11434` in Docker). |
 | `OLLAMA_PROXY_TIMEOUT_MS`  | Server   | Proxy timeout for Ollama (default 600000 ms). |
-| Client constants           | `kroger-cart.ts` | `CLIENT_ID`, `CLIENT_SECRET`, `KROGER_REDIRECT_URI`, `OLLAMA_MODEL`, `KROGER_LOCATION_ID`. Change and rebuild client for different envs. |
+| Client constants           | `client/config.ts` | `CLIENT_ID`, `CLIENT_SECRET`, `KROGER_REDIRECT_URI`, `OLLAMA_MODEL`, `KROGER_LOCATION_ID`. Change and rebuild client for different envs. |
 
 For Docker, the redirect URI must match how users reach the app (e.g. `http://localhost:8000/kroger-oauth-callback.html`). If you host on a different domain/port, update the redirect URI in code and in Kroger’s portal.
 
