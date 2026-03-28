@@ -66,6 +66,12 @@ export const config = {
   /** Cognito JWT on protected routes; browser redirect to /auth.html when true. */
   authRequired: resolveAuthRequired(),
 
+  /**
+   * When true with AUTH_REQUIRED, the main app does not auto-redirect to /auth.html; guests can browse
+   * and use Sign in / Create account in the header. APIs still require a JWT.
+   */
+  authAllowAnonymousBrowsing: envBool("AUTH_ALLOW_ANONYMOUS_BROWSING", false),
+
   /** Require active Stripe subscription (DynamoDB) after auth. Set true when billing is live. */
   subscriptionRequired: envBool("SUBSCRIPTION_REQUIRED", false),
 

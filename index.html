@@ -17,6 +17,7 @@
         <div id="accountAppBar" class="account-app-bar" style="display:none;">
           <span id="accountStatus" class="account-status"></span>
           <button type="button" id="btnAppSignIn" class="btn-app-auth" onclick="goAppSignIn()">Sign in</button>
+          <button type="button" id="btnAppSignUp" class="btn-app-auth btn-app-auth--ghost" onclick="goAppSignUp()">Create account</button>
           <button type="button" id="btnSubscribe" class="btn-app-auth" onclick="subscribeToPlan()">Subscribe</button>
           <button type="button" id="btnBillingPortal" class="btn-app-auth btn-app-auth--ghost" onclick="openBillingPortal()">Billing</button>
           <button type="button" id="btnAppSignOut" class="btn-app-auth btn-app-auth--ghost" onclick="signOutApp()">Sign out</button>
@@ -24,6 +25,13 @@
       </div>
     </header>
     <main class="main-content">
+      <div id="authBrowseBanner" class="auth-browse-banner" role="status" hidden>
+        <p>You’re browsing as a guest. Sign in or create an account to generate meal plans, use Kroger search, and sync your cart.</p>
+        <div class="auth-browse-banner__actions">
+          <button type="button" class="btn-app-auth" onclick="goAppSignIn()">Sign in</button>
+          <button type="button" class="btn-app-auth btn-app-auth--ghost" onclick="goAppSignUp()">Create account</button>
+        </div>
+      </div>
       <p id="bootError" class="boot-error" hidden></p>
       <div class="card">
         <p id="krogerSignInStatus">

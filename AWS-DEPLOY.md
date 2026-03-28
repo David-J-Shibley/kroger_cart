@@ -16,6 +16,7 @@ This app is a **Node.js Express** server. Typical production layout:
 5. Copy **User pool ID**, **App client ID**, **Client secret**, and the **Cognito domain** (e.g. `myapp.auth.us-east-1.amazoncognito.com`) into env:
    - `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_CLIENT_SECRET`, `COGNITO_DOMAIN`
 6. Set `AUTH_REQUIRED=true` and `APP_PUBLIC_URL=https://<your-domain>`.
+7. Optional: set `AUTH_ALLOW_ANONYMOUS_BROWSING=true` so the home page does not immediately redirect to login; guests see the app and can use **Sign in** / **Create account** in the header. APIs (meal plan, Kroger proxy, etc.) still require a Cognito JWT. Enable **self-registration** on the user pool if you use **Create account** (Hosted UI `/signup`).
 
 JWT verification uses `aws-jwt-verify` (JWKS from Cognito). No VPC endpoint required for that.
 

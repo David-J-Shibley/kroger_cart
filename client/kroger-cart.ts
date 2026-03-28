@@ -47,7 +47,10 @@ async function updateAccountBar(): Promise<void> {
   }
   bar.style.display = "";
   const tok = getCognitoAccessToken();
-  if (btnIn) btnIn.style.display = tok ? "none" : "inline-block";
+  const showAuthCtas = !tok && (cfg.authRequired || canAppSignIn);
+  if (btnIn) btnIn.style.display = showAuthCtas ? "inline-block" : "none";
+  const btnUp = document.getElementById("btnAppSignUp");
+  if (btnUp) btnUp.style.display = showAuthCtas && canAppSignIn ? "inline-block" : "none";
   if (btnOut) btnOut.style.display = tok ? "inline-block" : "none";
   if (btnSub) btnSub.style.display = tok && cfg.subscriptionRequired ? "inline-block" : "none";
   if (btnPortal) btnPortal.style.display = tok ? "inline-block" : "none";
@@ -94,6 +97,10 @@ function goAppSignIn(): void {
   window.location.href = "/auth.html";
 }
 
+function goAppSignUp(): void {
+  window.location.href = "/auth.html?signup=1";
+}
+
 function isAuthFlowPath(): boolean {
   const path = window.location.pathname || "";
   return path.endsWith("/auth.html") || path.endsWith("/auth-callback.html");
@@ -117,19 +124,29 @@ async function init(): Promise<void> {
   if (cfg && cfg.authRequired && !isAuthFlowPath()) {
     const tok = getCognitoAccessToken();
     if (!tok) {
-      window.location.href = "/auth.html";
-      return;
-    }
-    try {
-      const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
-      if (r.status === 401) {
-        clearCognitoSession();
+      if (!cfg.authAllowAnonymousBrowsing) {
         window.location.href = "/auth.html";
         return;
       }
-    } catch {
-      /* offline: keep session, stay on page */
+    } else {
+      try {
+        const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+        if (r.status === 401) {
+          clearCognitoSession();
+          window.location.href = "/auth.html";
+          return;
+        }
+      } catch {
+        /* offline: keep session, stay on page */
+      }
     }
+  }
+
+  const guestBanner = document.getElementById("authBrowseBanner");
+  if (guestBanner) {
+    const showGuest =
+      Boolean(cfg?.authRequired && cfg.authAllowAnonymousBrowsing && !getCognitoAccessToken());
+    guestBanner.hidden = !showGuest;
   }
   if (localStorage.getItem(SAVED_LLM_KEY)) {
     const loadBtn = document.getElementById("loadSavedBtn");
@@ -196,6 +213,7 @@ declare global {
     closeProductMetadata: () => void;
     signOutApp: () => void;
     goAppSignIn: () => void;
+    goAppSignUp: () => void;
     subscribeToPlan: () => Promise<void>;
     openBillingPortal: () => Promise<void>;
   }
@@ -215,6 +233,7 @@ window.showProductMetadata = showProductMetadata;
 window.closeProductMetadata = closeProductMetadata;
 window.signOutApp = signOutApp;
 window.goAppSignIn = goAppSignIn;
+window.goAppSignUp = goAppSignUp;
 window.subscribeToPlan = subscribeToPlan;
 window.openBillingPortal = openBillingPortal;
 

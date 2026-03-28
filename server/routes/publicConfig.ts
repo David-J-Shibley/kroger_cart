@@ -68,6 +68,7 @@ export function publicConfigHandler(req: Request, res: Response): void {
     cognitoClientId: cognitoClient,
     cognitoRedirectUri,
     authRequired: config.authRequired,
+    authAllowAnonymousBrowsing: config.authAllowAnonymousBrowsing,
     subscriptionRequired: config.subscriptionRequired,
   });
 }

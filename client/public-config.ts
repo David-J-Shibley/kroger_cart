@@ -9,6 +9,8 @@ export interface PublicConfig {
   cognitoClientId: string;
   cognitoRedirectUri: string;
   authRequired: boolean;
+  /** When true, main page does not force redirect to login; header Sign in / Create account instead. */
+  authAllowAnonymousBrowsing: boolean;
   subscriptionRequired: boolean;
 }
 
@@ -76,6 +78,7 @@ export async function ensurePublicConfig(): Promise<PublicConfig> {
       raw.cognitoRedirectUri ?? (origin ? origin + "/auth-callback.html" : "")
     ),
     authRequired: Boolean(raw.authRequired),
+    authAllowAnonymousBrowsing: Boolean(raw.authAllowAnonymousBrowsing),
     subscriptionRequired: Boolean(raw.subscriptionRequired),
   };
   return cached;

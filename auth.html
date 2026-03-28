@@ -13,6 +13,8 @@
   <script src="api-host-bootstrap.js"></script>
   <script>
     (async function () {
+      var qs = new URLSearchParams(window.location.search);
+      var signupFlow = qs.get("signup") === "1" || qs.get("intent") === "signup";
       var base = await window.krogerCartApiBase();
       if (localStorage.getItem("appCognitoAccessToken")) {
         window.location.replace("/index.html");
@@ -39,14 +41,17 @@
           var clientId = encodeURIComponent(c.cognitoClientId);
           var state = Math.random().toString(36).slice(2) + Date.now().toString(36);
           sessionStorage.setItem("cognitoOAuthState", state);
+          var oauthPath = signupFlow ? "/signup" : "/oauth2/authorize";
           var url =
-            "https://" + c.cognitoDomain + "/oauth2/authorize" +
+            "https://" + c.cognitoDomain + oauthPath +
             "?client_id=" + clientId +
             "&response_type=code" +
             "&scope=" + scope +
             "&redirect_uri=" + redirect +
             "&state=" + encodeURIComponent(state);
-          document.getElementById("msg").textContent = "Redirecting to sign-in…";
+          document.getElementById("msg").textContent = signupFlow
+            ? "Redirecting to create your account…"
+            : "Redirecting to sign-in…";
           window.location.href = url;
         })
         .catch(function (e) {

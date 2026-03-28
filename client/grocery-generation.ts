@@ -1,7 +1,8 @@
 import { appState } from "./app-state.js";
 import { mergeAppAuth } from "./authed-fetch.js";
+import { getCognitoAccessToken } from "./auth-session.js";
 import { OLLAMA_API_PATH, SAVED_LLM_KEY } from "./config.js";
-import { ensurePublicConfig, getAppOrigin, getOllamaModel } from "./public-config.js";
+import { ensurePublicConfig, getAppOrigin, getOllamaModel, tryGetPublicConfig } from "./public-config.js";
 import { escapeHtml, parseGroceryLines } from "./html-utils.js";
 import {
   buildMealPlanPrompt,
@@ -134,6 +135,14 @@ export async function generateGroceryList(): Promise<void> {
   }, 15000);
   try {
     await ensurePublicConfig();
+    const pub = tryGetPublicConfig();
+    if (pub?.authRequired && !getCognitoAccessToken()) {
+      clearTimeout(slowHintId);
+      out.style.display = "none";
+      (btn as HTMLButtonElement).disabled = false;
+      alert("Sign in or create an account (buttons in the header) to generate a meal plan.");
+      return;
+    }
     const ollamaModel = getOllamaModel();
     modelHint = ollamaModel;
     const prefs = readMealPlanPrefsFromForm();
