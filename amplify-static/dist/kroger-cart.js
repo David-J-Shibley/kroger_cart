@@ -93,6 +93,7 @@ async function ensurePublicConfig() {
       raw.cognitoRedirectUri ?? (origin ? origin + "/auth-callback.html" : "")
     ),
     authRequired: Boolean(raw.authRequired),
+    authAllowAnonymousBrowsing: Boolean(raw.authAllowAnonymousBrowsing),
     subscriptionRequired: Boolean(raw.subscriptionRequired)
   };
   return cached;
@@ -596,36 +597,67 @@ function clampInt(n, min, max) {
   return Math.min(max, Math.max(min, Math.round(n)));
 }
 function defaultMealPlanPrefs() {
-  return { people: 3, days: 7, mealScope: "all", notes: "" };
+  return {
+    people: 3,
+    days: 7,
+    includeBreakfast: true,
+    includeLunch: true,
+    includeDinner: true,
+    notes: ""
+  };
+}
+function legacyScopeToMeals(scope) {
+  if (scope === "dinner_only") {
+    return { includeBreakfast: false, includeLunch: false, includeDinner: true };
+  }
+  if (scope === "lunch_dinner") {
+    return { includeBreakfast: false, includeLunch: true, includeDinner: true };
+  }
+  return { includeBreakfast: true, includeLunch: true, includeDinner: true };
 }
 function parseStoredMealPrefs(raw) {
   const d = defaultMealPlanPrefs();
   if (!raw) return d;
   try {
     const o = JSON.parse(raw);
-    const scope = o.mealScope;
-    const mealScope = scope === "lunch_dinner" || scope === "dinner_only" ? scope : "all";
+    const fromLegacy = typeof o.mealScope === "string" ? legacyScopeToMeals(o.mealScope) : null;
+    let includeBreakfast = typeof o.includeBreakfast === "boolean" ? o.includeBreakfast : fromLegacy?.includeBreakfast ?? d.includeBreakfast;
+    let includeLunch = typeof o.includeLunch === "boolean" ? o.includeLunch : fromLegacy?.includeLunch ?? d.includeLunch;
+    let includeDinner = typeof o.includeDinner === "boolean" ? o.includeDinner : fromLegacy?.includeDinner ?? d.includeDinner;
+    if (!includeBreakfast && !includeLunch && !includeDinner) {
+      includeBreakfast = true;
+      includeLunch = true;
+      includeDinner = true;
+    }
     return {
       people: clampInt(Number(o.people), 1, 16),
       days: clampInt(Number(o.days), 1, 14),
-      mealScope,
+      includeBreakfast,
+      includeLunch,
+      includeDinner,
       notes: typeof o.notes === "string" ? o.notes.slice(0, 800) : ""
     };
   } catch {
     return d;
   }
 }
-function mealScopeDescription(scope) {
-  if (scope === "dinner_only")
-    return "For each day list only dinner with specific dish names (no breakfast or lunch).";
-  if (scope === "lunch_dinner")
-    return "For each day list lunch and dinner only with specific dish names (no breakfast).";
-  return "For each day list breakfast, lunch, and dinner with specific dish names.";
+function buildMealsInstruction(prefs) {
+  const b = prefs.includeBreakfast;
+  const l = prefs.includeLunch;
+  const d = prefs.includeDinner;
+  if (!b && !l && !d) {
+    return "For each day list only dinner with specific dish names.";
+  }
+  const parts = [];
+  if (b) parts.push("breakfast");
+  if (l) parts.push("lunch");
+  if (d) parts.push("dinner");
+  return `For each day include only these meals, with specific dish names: ${parts.join(", ")}. Do not plan or list ingredients for any other meals.`;
 }
 function buildMealPlanPrompt(prefs) {
   const people = clampInt(prefs.people, 1, 16);
   const days = clampInt(prefs.days, 1, 14);
-  const scopeLine = mealScopeDescription(prefs.mealScope);
+  const scopeLine = buildMealsInstruction(prefs);
   const notes = (prefs.notes || "").trim().slice(0, 800);
   const notesBlock = notes ? `
 
@@ -649,25 +681,42 @@ Then provide ONE consolidated grocery list for the entire period. Rules for the 
 function readMealPlanPrefsFromForm() {
   const peopleEl = document.getElementById("mealPlanPeople");
   const daysEl = document.getElementById("mealPlanDays");
-  const scopeEl = document.getElementById("mealPlanScope");
+  const bEl = document.getElementById("mealPlanBreakfast");
+  const lEl = document.getElementById("mealPlanLunch");
+  const dEl = document.getElementById("mealPlanDinner");
   const notesEl = document.getElementById("mealPlanNotes");
-  const scopeRaw = scopeEl?.value;
-  const mealScope = scopeRaw === "lunch_dinner" || scopeRaw === "dinner_only" ? scopeRaw : "all";
+  let includeBreakfast = Boolean(bEl?.checked);
+  let includeLunch = Boolean(lEl?.checked);
+  let includeDinner = Boolean(dEl?.checked);
+  if (!includeBreakfast && !includeLunch && !includeDinner) {
+    includeBreakfast = true;
+    includeLunch = true;
+    includeDinner = true;
+    if (bEl) bEl.checked = true;
+    if (lEl) lEl.checked = true;
+    if (dEl) dEl.checked = true;
+  }
   return {
     people: clampInt(parseInt(peopleEl?.value ?? "3", 10), 1, 16),
     days: clampInt(parseInt(daysEl?.value ?? "7", 10), 1, 14),
-    mealScope,
+    includeBreakfast,
+    includeLunch,
+    includeDinner,
     notes: (notesEl?.value ?? "").slice(0, 800)
   };
 }
 function applyMealPlanPrefsToForm(prefs) {
   const peopleEl = document.getElementById("mealPlanPeople");
   const daysEl = document.getElementById("mealPlanDays");
-  const scopeEl = document.getElementById("mealPlanScope");
+  const bEl = document.getElementById("mealPlanBreakfast");
+  const lEl = document.getElementById("mealPlanLunch");
+  const dEl = document.getElementById("mealPlanDinner");
   const notesEl = document.getElementById("mealPlanNotes");
   if (peopleEl) peopleEl.value = String(clampInt(prefs.people, 1, 16));
   if (daysEl) daysEl.value = String(clampInt(prefs.days, 1, 14));
-  if (scopeEl) scopeEl.value = prefs.mealScope;
+  if (bEl) bEl.checked = prefs.includeBreakfast;
+  if (lEl) lEl.checked = prefs.includeLunch;
+  if (dEl) dEl.checked = prefs.includeDinner;
   if (notesEl) notesEl.value = prefs.notes.slice(0, 800);
 }
 function persistMealPlanPrefs(prefs) {
@@ -678,7 +727,14 @@ function persistMealPlanPrefs(prefs) {
 }
 function initMealPlanForm() {
   applyMealPlanPrefsToForm(parseStoredMealPrefs(localStorage.getItem(SAVED_MEAL_PREFS_KEY)));
-  const ids = ["mealPlanPeople", "mealPlanDays", "mealPlanScope", "mealPlanNotes"];
+  const ids = [
+    "mealPlanPeople",
+    "mealPlanDays",
+    "mealPlanBreakfast",
+    "mealPlanLunch",
+    "mealPlanDinner",
+    "mealPlanNotes"
+  ];
   const onChange = () => persistMealPlanPrefs(readMealPlanPrefsFromForm());
   for (const id of ids) {
     const el = document.getElementById(id);
@@ -793,6 +849,14 @@ async function generateGroceryList() {
   }, 15e3);
   try {
     await ensurePublicConfig();
+    const pub = tryGetPublicConfig();
+    if (pub?.authRequired && !getCognitoAccessToken()) {
+      clearTimeout(slowHintId);
+      out.style.display = "none";
+      btn.disabled = false;
+      alert("Sign in or create an account (buttons in the header) to generate a meal plan.");
+      return;
+    }
     const ollamaModel = getOllamaModel();
     modelHint = ollamaModel;
     const prefs = readMealPlanPrefsFromForm();
@@ -910,7 +974,10 @@ async function updateAccountBar() {
   }
   bar.style.display = "";
   const tok = getCognitoAccessToken();
-  if (btnIn) btnIn.style.display = tok ? "none" : "inline-block";
+  const showAuthCtas = !tok && (cfg.authRequired || canAppSignIn);
+  if (btnIn) btnIn.style.display = showAuthCtas ? "inline-block" : "none";
+  const btnUp = document.getElementById("btnAppSignUp");
+  if (btnUp) btnUp.style.display = showAuthCtas && canAppSignIn ? "inline-block" : "none";
   if (btnOut) btnOut.style.display = tok ? "inline-block" : "none";
   if (btnSub) btnSub.style.display = tok && cfg.subscriptionRequired ? "inline-block" : "none";
   if (btnPortal) btnPortal.style.display = tok ? "inline-block" : "none";
@@ -953,6 +1020,9 @@ function signOutApp() {
 function goAppSignIn() {
   window.location.href = "/auth.html";
 }
+function goAppSignUp() {
+  window.location.href = "/auth.html?signup=1";
+}
 function isAuthFlowPath() {
   const path = window.location.pathname || "";
   return path.endsWith("/auth.html") || path.endsWith("/auth-callback.html");
@@ -974,18 +1044,26 @@ async function init() {
   if (cfg && cfg.authRequired && !isAuthFlowPath()) {
     const tok = getCognitoAccessToken();
     if (!tok) {
-      window.location.href = "/auth.html";
-      return;
-    }
-    try {
-      const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
-      if (r.status === 401) {
-        clearCognitoSession();
+      if (!cfg.authAllowAnonymousBrowsing) {
         window.location.href = "/auth.html";
         return;
       }
-    } catch {
+    } else {
+      try {
+        const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+        if (r.status === 401) {
+          clearCognitoSession();
+          window.location.href = "/auth.html";
+          return;
+        }
+      } catch {
+      }
     }
+  }
+  const guestBanner = document.getElementById("authBrowseBanner");
+  if (guestBanner) {
+    const showGuest = Boolean(cfg?.authRequired && cfg.authAllowAnonymousBrowsing && !getCognitoAccessToken());
+    guestBanner.hidden = !showGuest;
   }
   if (localStorage.getItem(SAVED_LLM_KEY)) {
     const loadBtn = document.getElementById("loadSavedBtn");
@@ -1047,6 +1125,7 @@ window.showProductMetadata = showProductMetadata;
 window.closeProductMetadata = closeProductMetadata;
 window.signOutApp = signOutApp;
 window.goAppSignIn = goAppSignIn;
+window.goAppSignUp = goAppSignUp;
 window.subscribeToPlan = subscribeToPlan;
 window.openBillingPortal = openBillingPortal;
 void init();

@@ -65,7 +65,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
 }
 
 .page-header-brand {
@@ -99,18 +99,18 @@ body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .account-status {
   font-size: 0.8125rem;
   opacity: 0.95;
-  margin-right: 4px;
+  margin-right: 2px;
 }
 
 .btn-app-auth {
-  padding: 6px 12px;
-  border-radius: var(--radius);
+  padding: 5px 10px;
+  border-radius: 8px;
   font-size: 0.8125rem;
   font-weight: 600;
   border: none;
@@ -138,6 +138,48 @@ body {
   padding: 24px;
 }
 
+.auth-browse-banner {
+  margin: 0 0 18px 0;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(28, 203, 126, 0.1) 0%, rgba(13, 242, 254, 0.12) 100%);
+  border: 1px solid rgba(19, 27, 56, 0.1);
+  box-shadow: var(--shadow);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.auth-browse-banner p {
+  margin: 0 0 10px 0;
+}
+
+.auth-browse-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.auth-browse-banner .btn-app-auth {
+  background: var(--app-primary);
+  color: #fff;
+}
+
+.auth-browse-banner .btn-app-auth:hover {
+  background: var(--app-primary-hover);
+  color: #fff;
+}
+
+.auth-browse-banner .btn-app-auth--ghost {
+  background: transparent;
+  color: var(--app-primary);
+  border: 1px solid var(--border);
+}
+
+.auth-browse-banner .btn-app-auth--ghost:hover {
+  background: var(--app-primary-light);
+}
+
 .boot-error {
   margin: 0 0 16px 0;
   padding: 12px 16px;
@@ -150,7 +192,7 @@ body {
 }
 
 h2 { font-size: 1.375rem; font-weight: 600; margin: 0 0 16px 0; color: var(--app-primary); }
-h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text); }
+h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-primary); letter-spacing: -0.01em; }
 
 .card {
   background: var(--card);
@@ -161,7 +203,31 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text
   border: 1px solid var(--border);
 }
 
-#krogerSignInStatus { margin-bottom: 12px; }
+.card--kroger {
+  border-color: rgba(13, 242, 254, 0.35);
+  box-shadow: var(--shadow), 0 0 0 1px rgba(28, 203, 126, 0.08);
+}
+
+.card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 6px 0;
+  color: var(--app-primary);
+  letter-spacing: -0.02em;
+}
+
+.card__lead {
+  margin: 0 0 14px 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.card__actions {
+  margin: 0;
+}
+
+#krogerSignInStatus { margin-bottom: 0; }
 
 #krogerSignInStatus button,
 .btn-primary {
@@ -178,6 +244,13 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text
 
 #krogerSignInStatus button:hover,
 .btn-primary:hover { background: var(--cta-hover); color: #fff; }
+
+.btn-kroger-cta {
+  width: 100%;
+  max-width: 320px;
+  padding: 12px 20px;
+  font-size: 0.9375rem;
+}
 
 #krogerSignedIn { color: var(--text-muted); font-size: 0.9375rem; }
 
@@ -263,7 +336,18 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text
   box-shadow: var(--shadow);
 }
 
+.section--meal-plan {
+  border-color: rgba(19, 27, 56, 0.12);
+}
+
 .section p { margin: 0 0 12px 0; color: var(--text-muted); font-size: 0.9375rem; }
+
+.section-lead {
+  margin: 0 0 14px 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
 
 .meal-plan-options {
   display: grid;
@@ -300,8 +384,71 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text
   color: var(--text-muted);
 }
 
+.meal-meals-fieldset {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.meal-meals-legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 8px 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.meal-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  clear: both;
+}
+
+.meal-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  user-select: none;
+}
+
+.meal-checkbox-label:hover {
+  border-color: rgba(13, 242, 254, 0.55);
+  background: rgba(13, 242, 254, 0.06);
+}
+
+.meal-checkbox-label:has(input:checked) {
+  border-color: rgba(28, 203, 126, 0.65);
+  background: rgba(28, 203, 126, 0.1);
+  box-shadow: 0 0 0 1px rgba(28, 203, 126, 0.2);
+}
+
+.meal-checkbox-label input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-emerald);
+  cursor: pointer;
+}
+
+.meal-checkbox-label input:focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 2px;
+}
+
 .meal-plan-row input[type="number"],
-.meal-plan-row select,
 .meal-plan-row textarea {
   padding: 10px 14px;
   border: 1px solid var(--border);
@@ -314,8 +461,6 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text
 
 .meal-plan-row input[type="number"] { max-width: 120px; }
 
-.meal-plan-row select { cursor: pointer; max-width: 100%; }
-
 .meal-plan-row textarea {
   resize: vertical;
   min-height: 72px;
@@ -323,11 +468,18 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text
 }
 
 .meal-plan-row input:focus,
-.meal-plan-row select:focus,
 .meal-plan-row textarea:focus {
   outline: none;
   border-color: var(--color-teal);
   box-shadow: var(--focus-ring);
+}
+
+.section-generate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .section button {
@@ -338,8 +490,8 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--text
   background: var(--cta);
   color: #131b38;
   border: none;
-  margin-right: 8px;
-  margin-bottom: 8px;
+  margin-right: 0;
+  margin-bottom: 0;
 }
 
 .section button:hover { background: var(--cta-hover); color: #fff; }

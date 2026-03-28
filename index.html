@@ -33,9 +33,11 @@
         </div>
       </div>
       <p id="bootError" class="boot-error" hidden></p>
-      <div class="card">
-        <p id="krogerSignInStatus">
-             <button type="button" id="krogerSignInBtn" onclick="signInWithKroger()">Sign in with Kroger</button>
+      <div class="card card--kroger">
+        <h2 class="card__title">Kroger</h2>
+        <p class="card__lead">Connect your Kroger account to search products and sync your cart.</p>
+        <p id="krogerSignInStatus" class="card__actions">
+             <button type="button" id="krogerSignInBtn" class="btn btn-kroger-cta" onclick="signInWithKroger()">Sign in with Kroger</button>
              <span id="krogerSignedIn" style="display:none;">Signed in. <button type="button" onclick="signOutKroger()">Sign out</button></span>
          </p>
        </div>
@@ -57,9 +59,9 @@
            </div>
        </div>
 
-       <div class="section">
+       <div class="section section--meal-plan">
            <h3>Generate grocery list</h3>
-           <p>Use your LLM (Ollama, proxied by this app) to build a meal plan and one consolidated grocery list. Adjust options below, then generate.</p>
+           <p class="section-lead">Use your LLM (Ollama, proxied by this app) to build a meal plan and one consolidated grocery list. Adjust options below, then generate.</p>
            <div class="meal-plan-options" id="mealPlanOptions">
              <div class="meal-plan-row">
                <label for="mealPlanPeople">People</label>
@@ -70,20 +72,33 @@
                <input type="number" id="mealPlanDays" min="1" max="14" value="7" title="Length of the meal plan (e.g. one week = 7)">
              </div>
              <div class="meal-plan-row meal-plan-row--full">
-               <label for="mealPlanScope">Meals per day</label>
-               <select id="mealPlanScope" title="Which meals to include each day">
-                 <option value="all">Breakfast, lunch & dinner</option>
-                 <option value="lunch_dinner">Lunch & dinner only</option>
-                 <option value="dinner_only">Dinner only</option>
-               </select>
+               <fieldset class="meal-meals-fieldset">
+                 <legend class="meal-meals-legend">Meals to include each day</legend>
+                 <div class="meal-checkbox-group" role="group" aria-label="Meals to include each day">
+                   <label class="meal-checkbox-label">
+                     <input type="checkbox" id="mealPlanBreakfast" checked title="Include breakfast">
+                     <span>Breakfast</span>
+                   </label>
+                   <label class="meal-checkbox-label">
+                     <input type="checkbox" id="mealPlanLunch" checked title="Include lunch">
+                     <span>Lunch</span>
+                   </label>
+                   <label class="meal-checkbox-label">
+                     <input type="checkbox" id="mealPlanDinner" checked title="Include dinner">
+                     <span>Dinner</span>
+                   </label>
+                 </div>
+               </fieldset>
              </div>
              <div class="meal-plan-row meal-plan-row--full">
                <label for="mealPlanNotes">Dietary notes & preferences <span class="optional">(optional)</span></label>
                <textarea id="mealPlanNotes" rows="3" maxlength="800" placeholder="e.g. vegetarian, nut allergy, kid-friendly, low sodium, budget-friendly…"></textarea>
              </div>
            </div>
+           <div class="section-generate-actions">
            <button id="generateBtn" onclick="generateGroceryList()">Generate meal plan & grocery list</button>
-           <button id="loadSavedBtn" type="button" onclick="loadSavedLLM()" style="margin-left: 8px; display: none;">Load saved</button>
+           <button id="loadSavedBtn" type="button" onclick="loadSavedLLM()" style="display: none;">Load saved</button>
+           </div>
            <div id="generated" style="margin-top: 12px; display: none;"></div>
            <div id="add-to-cart-section" class="add-to-cart-section" style="display: none;">
              <h3 class="add-to-cart-heading">Add to cart</h3>
