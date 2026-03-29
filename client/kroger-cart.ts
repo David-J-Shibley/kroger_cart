@@ -14,9 +14,11 @@ import {
   addSuggestedItem,
   copyGroceryListToClipboard,
   generateGroceryList,
+  loadExampleMealPlan,
   loadSavedLLM,
   saveLLMToStorage,
 } from "./grocery-generation.js";
+import { initAutoCartPreferencesUi } from "./auto-cart-ui.js";
 import { initMealPlanForm } from "./meal-plan.js";
 import {
   closeProductMetadata,
@@ -109,6 +111,7 @@ function isAuthFlowPath(): boolean {
 async function init(): Promise<void> {
   loadStoredKrogerAppToken();
   initMealPlanForm();
+  initAutoCartPreferencesUi();
   let cfg: PublicConfig | null = null;
   try {
     cfg = await ensurePublicConfig();
@@ -204,6 +207,7 @@ declare global {
     addItem: () => Promise<void>;
     closeProductPicker: () => void;
     generateGroceryList: () => Promise<void>;
+    loadExampleMealPlan: () => void;
     loadSavedLLM: () => void;
     saveLLMToStorage: () => void;
     copyGroceryListToClipboard: () => Promise<void>;
@@ -224,6 +228,7 @@ window.signOutKroger = signOutKroger;
 window.addItem = addItem;
 window.closeProductPicker = closeProductPicker;
 window.generateGroceryList = generateGroceryList;
+window.loadExampleMealPlan = loadExampleMealPlan;
 window.loadSavedLLM = loadSavedLLM;
 window.saveLLMToStorage = saveLLMToStorage;
 window.copyGroceryListToClipboard = copyGroceryListToClipboard;

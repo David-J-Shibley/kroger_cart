@@ -4,11 +4,11 @@ import { ensurePublicConfig, getBackendOrigin } from "./public-config.js";
 import { shortProductName } from "./html-utils.js";
 import type { KrogerCartResponse, KrogerProduct } from "./types.js";
 
-export async function addProductToCart(product: KrogerProduct, quantity: number): Promise<void> {
+export async function addProductToCart(product: KrogerProduct, quantity: number): Promise<boolean> {
   const userToken = await getKrogerUserTokenOrRefresh();
   if (!userToken) {
     alert("Please sign in with Kroger first.");
-    return;
+    return false;
   }
   await ensurePublicConfig();
   const fileProto = window.location.protocol === "file:";
@@ -45,29 +45,31 @@ export async function addProductToCart(product: KrogerProduct, quantity: number)
       const err = result as unknown as { error?: string; code?: string };
       if (err.error === "subscription_required") {
         alert("An active subscription is required. Use Subscribe in the header.");
-        return;
+        return false;
       }
       if (err.code === "AUTH-1007") {
         alert("Cart request was denied. Try signing out and signing in again.");
-        return;
+        return false;
       }
       alert("Cart request was denied. Try signing out and signing in again.");
-      return;
+      return false;
     }
     if (result.code === "AUTH-1007") {
       alert("Cart request was denied. Try signing out and signing in again.");
-      return;
+      return false;
     }
     if (!response.ok) {
       alert(
         "Error adding to cart: " + (result.message || result.code || response.status)
       );
-      return;
+      return false;
     }
     displayCart(result);
+    return true;
   } catch (e) {
     console.error(e);
     alert("Error adding to cart: " + (e instanceof Error ? e.message : e));
+    return false;
   }
 }
 

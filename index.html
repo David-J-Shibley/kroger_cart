@@ -44,6 +44,30 @@
          </p>
        </div>
 
+       <div class="card card--auto-cart" id="autoCartCard">
+         <h2 class="card__title">Automatic add to cart</h2>
+         <p class="card__lead">When Kroger returns several matches for a grocery line, skip the chooser and add one item using the rule you pick below. (You can still open the chooser by turning this off.)</p>
+         <div class="auto-cart-controls">
+           <label class="auto-cart-toggle">
+             <input type="checkbox" id="autoAddToCartEnabled" />
+             <span>Automatically pick a product</span>
+           </label>
+           <div class="auto-cart-strategy-row">
+             <label for="autoAddToCartStrategy">Selection rule</label>
+             <select id="autoAddToCartStrategy" aria-describedby="autoCartStrategyHint">
+               <option value="default">Top search result (Kroger order)</option>
+               <option value="cheapest">Cheapest (lowest listed price)</option>
+               <option value="premium">Premium (highest listed price)</option>
+               <option value="healthiest">Healthiest signals (organic, whole grain, low sodium, etc.)</option>
+               <option value="organic_first">Prefer organic, then health signals</option>
+               <option value="store_brand">Prefer store brand (Simple Truth, Private Selection, Kroger…)</option>
+             </select>
+           </div>
+           <p id="autoCartStrategyHint" class="auto-cart-hint">“Healthiest” scores product names and metadata for keywords like organic, non-GMO, and whole grain—it’s a heuristic, not medical advice.</p>
+           <p id="autoCartFeedback" class="auto-cart-feedback" role="status" aria-live="polite" hidden></p>
+         </div>
+       </div>
+
        <div id="productPickerModal" class="modal-overlay hidden" aria-hidden="true" onclick="if(event.target===this)closeProductPicker()">
            <div class="modal-box" onclick="event.stopPropagation()">
                <h3 id="productPickerTitle">Choose a product</h3>
@@ -99,6 +123,7 @@
            </div>
            <div class="section-generate-actions">
            <button id="generateBtn" onclick="generateGroceryList()">Generate meal plan & grocery list</button>
+           <button id="loadExampleBtn" type="button" onclick="loadExampleMealPlan()">Load example (testing)</button>
            <button id="loadSavedBtn" type="button" onclick="loadSavedLLM()" style="display: none;">Load saved</button>
            </div>
            <div id="generated" style="margin-top: 12px; display: none;"></div>

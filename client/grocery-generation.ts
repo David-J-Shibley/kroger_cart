@@ -10,7 +10,8 @@ import {
   readMealPlanPrefsFromForm,
 } from "./meal-plan.js";
 import type { OllamaMessage } from "./types.js";
-import { addItem } from "./add-to-cart.js";
+import { EXAMPLE_MEAL_PLAN_TEXT } from "./example-meal-plan.js";
+import { searchAndAddToCart } from "./add-to-cart.js";
 
 export function renderGeneratedResult(text: string): void {
   appState.lastGeneratedText = text;
@@ -70,6 +71,11 @@ export function loadSavedLLM(): void {
   }
 }
 
+/** Load bundled sample meal plan + grocery list (no LLM). For testing UI and Kroger add-to-cart. */
+export function loadExampleMealPlan(): void {
+  renderGeneratedResult(EXAMPLE_MEAL_PLAN_TEXT);
+}
+
 export async function copyGroceryListToClipboard(): Promise<void> {
   const lines = parseGroceryLines(appState.lastGeneratedText);
   if (!lines.length) {
@@ -108,13 +114,7 @@ export function addSuggestedItem(btnOrLine: HTMLElement | string): void {
       ? btnOrLine
       : (btnOrLine as HTMLElement).getAttribute("data-line");
   if (!line) return;
-  const productEl = document.getElementById("product");
-  const qtyEl = document.getElementById("quantity");
-  if (productEl && qtyEl) {
-    (productEl as HTMLInputElement).value = line;
-    (qtyEl as HTMLInputElement).value = "1";
-    void addItem();
-  }
+  void searchAndAddToCart(line, 1);
 }
 
 export async function generateGroceryList(): Promise<void> {
