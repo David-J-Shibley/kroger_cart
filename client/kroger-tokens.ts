@@ -75,8 +75,10 @@ export function updateSignInUI(): void {
   const hasUser = hasKrogerUserSession();
   const signInBtn = document.getElementById("krogerSignInBtn");
   const signedIn = document.getElementById("krogerSignedIn");
+  const lead = document.getElementById("krogerCardLead");
   if (signInBtn) signInBtn.style.display = hasUser ? "none" : "";
   if (signedIn) signedIn.style.display = hasUser ? "inline" : "none";
+  if (lead) lead.hidden = hasUser;
 }
 
 export async function signInWithKroger(): Promise<void> {

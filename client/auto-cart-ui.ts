@@ -3,7 +3,6 @@ import type { AutoCartStrategy } from "./auto-cart-strategy.js";
 
 const CHECKBOX_ID = "autoAddToCartEnabled";
 const SELECT_ID = "autoAddToCartStrategy";
-const FEEDBACK_ID = "autoCartFeedback";
 
 function syncSelectDisabled(): void {
   const cb = document.getElementById(CHECKBOX_ID) as HTMLInputElement | null;
@@ -31,19 +30,4 @@ export function initAutoCartPreferencesUi(): void {
   sel.addEventListener("change", () => {
     setAutoAddStrategy(sel.value as AutoCartStrategy);
   });
-}
-
-let feedbackClear: ReturnType<typeof setTimeout> | undefined;
-
-export function showAutoPickFeedback(message: string): void {
-  const el = document.getElementById(FEEDBACK_ID);
-  if (!el) return;
-  if (feedbackClear) clearTimeout(feedbackClear);
-  el.textContent = message;
-  el.hidden = false;
-  feedbackClear = setTimeout(() => {
-    el.textContent = "";
-    el.hidden = true;
-    feedbackClear = undefined;
-  }, 8000);
 }

@@ -1,6 +1,5 @@
 import { autoStrategyLabel, pickProductByStrategy } from "./auto-cart-strategy.js";
 import { getAutoAddEnabled, getAutoAddStrategy } from "./auto-cart-prefs.js";
-import { showAutoPickFeedback } from "./auto-cart-ui.js";
 import { addProductToCart } from "./cart-api.js";
 import { shortProductName } from "./html-utils.js";
 import { getAccessToken, getKrogerUserTokenOrRefresh } from "./kroger-tokens.js";
@@ -54,18 +53,10 @@ export async function searchAndAddToCart(productName: string, quantity: number):
     if (auto) {
       const strategy = getAutoAddStrategy();
       const chosen = pickProductByStrategy(products, strategy);
-      const priceNote = chosen.price > 0 ? " ($" + chosen.price.toFixed(2) + ")" : "";
-      const ok = await addProductToCart(chosen, quantity);
-      if (ok) {
-        showAutoPickFeedback(
-          "Added: " +
-            chosen.name +
-            priceNote +
-            " — " +
-            autoStrategyLabel(strategy) +
-            "."
-        );
-      }
+      const priceNote = chosen.price > 0 ? " · $" + chosen.price.toFixed(2) : "";
+      await addProductToCart(chosen, quantity, {
+        toastDetail: autoStrategyLabel(strategy) + priceNote,
+      });
       return;
     }
     showProductPicker(products, quantity, searchTerm);

@@ -1,10 +1,20 @@
+import { showAddToCartToast } from "./cart-feedback.js";
 import { krogerProxyHeaders } from "./authed-fetch.js";
 import { getKrogerUserTokenOrRefresh } from "./kroger-tokens.js";
 import { ensurePublicConfig, getBackendOrigin } from "./public-config.js";
 import { shortProductName } from "./html-utils.js";
 import type { KrogerCartResponse, KrogerProduct } from "./types.js";
 
-export async function addProductToCart(product: KrogerProduct, quantity: number): Promise<boolean> {
+export type AddToCartOptions = {
+  /** Shown under the main toast line (e.g. auto-pick rule). */
+  toastDetail?: string;
+};
+
+export async function addProductToCart(
+  product: KrogerProduct,
+  quantity: number,
+  options?: AddToCartOptions
+): Promise<boolean> {
   const userToken = await getKrogerUserTokenOrRefresh();
   if (!userToken) {
     alert("Please sign in with Kroger first.");
@@ -65,6 +75,7 @@ export async function addProductToCart(product: KrogerProduct, quantity: number)
       return false;
     }
     displayCart(result);
+    showAddToCartToast(shortProductName(product.name), quantity, options?.toastDetail);
     return true;
   } catch (e) {
     console.error(e);

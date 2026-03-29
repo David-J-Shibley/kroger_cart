@@ -37,7 +37,7 @@
       <p id="bootError" class="boot-error" hidden></p>
       <div class="card card--kroger">
         <h2 class="card__title">Kroger</h2>
-        <p class="card__lead">Connect your Kroger account to search products and sync your cart.</p>
+        <p id="krogerCardLead" class="card__lead">Connect your Kroger account to search products and sync your cart.</p>
         <p id="krogerSignInStatus" class="card__actions">
              <button type="button" id="krogerSignInBtn" class="btn btn-kroger-cta" onclick="signInWithKroger()">Sign in with Kroger</button>
              <span id="krogerSignedIn" style="display:none;">Signed in. <button type="button" onclick="signOutKroger()">Sign out</button></span>
@@ -64,7 +64,6 @@
              </select>
            </div>
            <p id="autoCartStrategyHint" class="auto-cart-hint">“Healthiest” scores product names and metadata for keywords like organic, non-GMO, and whole grain—it’s a heuristic, not medical advice.</p>
-           <p id="autoCartFeedback" class="auto-cart-feedback" role="status" aria-live="polite" hidden></p>
          </div>
        </div>
 
@@ -134,6 +133,10 @@
       </div>
     </main>
                                                                                  
+      <div id="cartToast" class="cart-toast" role="status" aria-live="polite" aria-atomic="true" hidden>
+        <span class="cart-toast__main"></span>
+        <span class="cart-toast__detail"></span>
+      </div>
       <script type="module" src="dist/kroger-cart.js"></script>
    </body>
    </html>
