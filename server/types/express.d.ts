@@ -7,6 +7,7 @@ declare global {
       appUserId?: string;
       /** Cognito `username` claim when present */
       appUsername?: string;
+      /** Cognito `email` claim only (not the username) */
       appUserEmail?: string;
     }
   }

@@ -12,7 +12,10 @@ export type SubscriptionStatus = "none" | "active" | "past_due" | "canceled";
 
 export interface UserRecord {
   userId: string;
+  /** Cognito `email` claim when present on the token used for upsert. */
   email?: string;
+  /** Cognito `username` (sign-in identifier; may differ from email). */
+  username?: string;
   stripeCustomerId?: string;
   subscriptionStatus: SubscriptionStatus;
   updatedAt: string;
@@ -64,35 +67,51 @@ export async function putUser(record: UserRecord): Promise<void> {
   }
 }
 
-export async function upsertUserFromAuth(userId: string, email?: string): Promise<void> {
+export async function upsertUserFromAuth(
+  userId: string,
+  opts: { email?: string; username?: string }
+): Promise<void> {
+  const { email, username } = opts;
   const existing = await getUser(userId);
   if (existing) {
-    if (email && email !== existing.email) {
-      const d = getDocClient();
-      const table = config.dynamodbUsersTable;
-      if (d && table) {
-        try {
-          await d.send(
-            new UpdateCommand({
-              TableName: table,
-              Key: { userId },
-              UpdateExpression: "SET email = :e, updatedAt = :u",
-              ExpressionAttributeValues: {
-                ":e": email,
-                ":u": new Date().toISOString(),
-              },
-            })
-          );
-        } catch (e) {
-          logger.error({ err: e, userId }, "DynamoDB upsertUserFromAuth email update failed");
-        }
-      }
+    const emailChanged = email !== undefined && email !== existing.email;
+    const usernameChanged = username !== undefined && username !== existing.username;
+    if (!emailChanged && !usernameChanged) return;
+
+    const d = getDocClient();
+    const table = config.dynamodbUsersTable;
+    if (!d || !table) return;
+
+    const setParts: string[] = ["updatedAt = :u"];
+    const vals: Record<string, string> = { ":u": new Date().toISOString() };
+    if (emailChanged) {
+      setParts.push("email = :e");
+      vals[":e"] = email;
+    }
+    if (usernameChanged) {
+      setParts.push("username = :n");
+      vals[":n"] = username;
+    }
+
+    try {
+      await d.send(
+        new UpdateCommand({
+          TableName: table,
+          Key: { userId },
+          UpdateExpression: "SET " + setParts.join(", "),
+          ExpressionAttributeValues: vals,
+        })
+      );
+    } catch (e) {
+      logger.error({ err: e, userId }, "DynamoDB upsertUserFromAuth update failed");
     }
     return;
   }
+
   await putUser({
     userId,
     email,
+    username,
     subscriptionStatus: "none",
     updatedAt: new Date().toISOString(),
   });

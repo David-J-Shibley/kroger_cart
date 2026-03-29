@@ -67,7 +67,7 @@ export async function cognitoAuthMiddleware(
   if (!config.authRequired) {
     req.appUserId = "dev";
     req.appUserEmail = "dev@local";
-    req.appUsername = undefined;
+    req.appUsername = "dev";
     next();
     return;
   }
@@ -94,12 +94,8 @@ export async function cognitoAuthMiddleware(
       typeof (payload as { username?: string }).username === "string"
         ? (payload as { username?: string }).username
         : undefined;
-    req.appUserEmail =
-      typeof payload.email === "string"
-        ? payload.email
-        : typeof (payload as { username?: string }).username === "string"
-          ? (payload as { username?: string }).username
-          : undefined;
+    /** Only the `email` claim — do not use username here (username is stored separately in DynamoDB). */
+    req.appUserEmail = typeof payload.email === "string" ? payload.email : undefined;
     next();
   } catch (e) {
     logger.warn({ err: e }, "Cognito JWT verification failed");

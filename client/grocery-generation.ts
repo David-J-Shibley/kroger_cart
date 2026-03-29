@@ -374,8 +374,6 @@ export async function generateGroceryList(): Promise<void> {
       } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
         msg +=
           "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";
-      } else if (/subscription is required|SUBSCRIPTION_REQUIRED/i.test(raw)) {
-        msg += "\n\nSubscribe via the app header, or set SUBSCRIPTION_REQUIRED=false for local dev.";
       }
     }
     out.textContent = msg;

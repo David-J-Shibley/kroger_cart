@@ -82,11 +82,16 @@ async function ensurePublicConfig() {
   }
   const raw = await res.json();
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const llmModel = String(raw.llmModel ?? raw.ollamaModel ?? "qwen3:8b").trim();
+  const prov = String(raw.llmProvider ?? "").toLowerCase();
+  const llmProvider = prov === "featherless" ? "featherless" : "ollama";
   cached = {
     krogerClientId: String(raw.krogerClientId ?? ""),
     krogerRedirectUri: String(raw.krogerRedirectUri ?? ""),
     krogerLocationId: String(raw.krogerLocationId ?? ""),
-    ollamaModel: String(raw.ollamaModel ?? "qwen3:8b"),
+    llmProvider,
+    llmModel: llmModel || "qwen3:8b",
+    ollamaModel: llmModel || "qwen3:8b",
     cognitoDomain: String(raw.cognitoDomain ?? ""),
     cognitoClientId: String(raw.cognitoClientId ?? ""),
     cognitoRedirectUri: String(
@@ -94,7 +99,8 @@ async function ensurePublicConfig() {
     ),
     authRequired: Boolean(raw.authRequired),
     authAllowAnonymousBrowsing: Boolean(raw.authAllowAnonymousBrowsing),
-    subscriptionRequired: Boolean(raw.subscriptionRequired)
+    subscriptionRequired: Boolean(raw.subscriptionRequired),
+    testMode: Boolean(raw.testMode)
   };
   return cached;
 }
@@ -111,7 +117,12 @@ function getKrogerLocationId() {
   return tryGetPublicConfig()?.krogerLocationId ?? "";
 }
 function getOllamaModel() {
-  return tryGetPublicConfig()?.ollamaModel ?? "qwen3:8b";
+  const c = tryGetPublicConfig();
+  const m = c?.llmModel ?? c?.ollamaModel;
+  return m && m.trim() || "qwen3:8b";
+}
+function getLlmProvider() {
+  return tryGetPublicConfig()?.llmProvider === "featherless" ? "featherless" : "ollama";
 }
 function getAppOrigin() {
   return getBackendOrigin();
@@ -165,6 +176,204 @@ async function openBillingPortal() {
 var OLLAMA_API_PATH = "/ollama-api";
 var SAVED_LLM_KEY = "krogerCartSavedLLM";
 var SAVED_MEAL_PREFS_KEY = "krogerCartMealPrefs";
+var AUTO_ADD_ENABLED_KEY = "krogerCartAutoAddEnabled";
+var AUTO_ADD_STRATEGY_KEY = "krogerCartAutoAddStrategy";
+
+// client/auto-cart-strategy.ts
+var STRATEGIES = [
+  "default",
+  "cheapest",
+  "premium",
+  "healthiest",
+  "organic_first",
+  "store_brand"
+];
+function parseAutoCartStrategy(raw) {
+  const s = (raw || "").trim();
+  if (STRATEGIES.includes(s)) return s;
+  return "cheapest";
+}
+function haystack(p) {
+  const bits = [p.name || ""];
+  try {
+    if (p.raw && typeof p.raw === "object") {
+      bits.push(JSON.stringify(p.raw));
+    }
+  } catch {
+  }
+  return bits.join(" ").toLowerCase();
+}
+function pickCheapest(products2) {
+  const withPrice = products2.filter((p) => p.price > 0);
+  const pool = withPrice.length ? withPrice : products2;
+  return [...pool].sort((a, b) => a.price - b.price || a.name.localeCompare(b.name))[0];
+}
+function pickPremium(products2) {
+  const withPrice = products2.filter((p) => p.price > 0);
+  const pool = withPrice.length ? withPrice : products2;
+  return [...pool].sort((a, b) => b.price - a.price || a.name.localeCompare(b.name))[0];
+}
+var HEALTH_PATTERNS = [
+  { re: /\busda\s+organic\b/i, w: 6 },
+  { re: /\borganic\b/i, w: 4 },
+  { re: /\bnon[-\s]?gmo\b/i, w: 3 },
+  { re: /\bwhole\s+grain\b/i, w: 2 },
+  { re: /\b100%\s+whole\s+wheat\b/i, w: 2 },
+  { re: /\bgrass[-\s]?fed\b/i, w: 2 },
+  { re: /\bpasture[\s-]?raised\b/i, w: 2 },
+  { re: /\bwild[\s-]?caught\b/i, w: 2 },
+  { re: /\bno\s+added\s+sugar\b/i, w: 2 },
+  { re: /\blow\s+sodium\b/i, w: 2 },
+  { re: /\bunsweetened\b/i, w: 1 },
+  { re: /\bplant[-\s]?based\b/i, w: 1 },
+  { re: /\bvegan\b/i, w: 1 },
+  { re: /\bheart\s+healthy\b/i, w: 2 },
+  { re: /\bhigh\s+fiber\b/i, w: 1 }
+];
+var HEALTH_NEGATIVE = [
+  { re: /\bartificial\b/i, w: -1 },
+  { re: /\bhigh\s+fructose\b/i, w: -2 }
+];
+function healthScore(p) {
+  const text = haystack(p);
+  let score = 0;
+  for (const { re, w } of HEALTH_PATTERNS) {
+    if (re.test(text)) score += w;
+  }
+  for (const { re, w } of HEALTH_NEGATIVE) {
+    if (re.test(text)) score += w;
+  }
+  return score;
+}
+function pickHealthiest(products2) {
+  const scored = products2.map((p) => ({ p, s: healthScore(p) }));
+  scored.sort((a, b) => b.s - a.s || a.p.price - b.p.price || a.p.name.localeCompare(b.p.name));
+  if (scored[0].s > 0) return scored[0].p;
+  return products2[0];
+}
+function pickOrganicFirst(products2) {
+  const organic = products2.filter((p) => /\borganic\b/i.test(haystack(p)));
+  if (organic.length) return pickCheapest(organic);
+  return pickHealthiest(products2);
+}
+var STORE_BRAND_RE = /\b(simple\s+truth|private\s+selection|heritage\s+farm|hemis['']?\s*farms|kroger\s+naturals?|kroger\s+brand)\b/i;
+function pickStoreBrand(products2) {
+  const branded = products2.filter((p) => STORE_BRAND_RE.test(haystack(p)));
+  if (branded.length) return pickCheapest(branded);
+  return products2[0];
+}
+function pickProductByStrategy(products2, strategy) {
+  if (products2.length <= 1) return products2[0];
+  switch (strategy) {
+    case "default":
+      return products2[0];
+    case "cheapest":
+      return pickCheapest(products2);
+    case "premium":
+      return pickPremium(products2);
+    case "healthiest":
+      return pickHealthiest(products2);
+    case "organic_first":
+      return pickOrganicFirst(products2);
+    case "store_brand":
+      return pickStoreBrand(products2);
+    default:
+      return products2[0];
+  }
+}
+function autoStrategyLabel(strategy) {
+  switch (strategy) {
+    case "default":
+      return "top search result";
+    case "cheapest":
+      return "lowest price among matches";
+    case "premium":
+      return "highest price among matches";
+    case "healthiest":
+      return "strongest healthy-label signals (organic, whole grain, etc.)";
+    case "organic_first":
+      return "organic if available, else health signals";
+    case "store_brand":
+      return "store brand / Simple Truth / Private Selection when listed";
+    default:
+      return strategy;
+  }
+}
+
+// client/auto-cart-prefs.ts
+function getAutoAddEnabled() {
+  try {
+    return localStorage.getItem(AUTO_ADD_ENABLED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function setAutoAddEnabled(on) {
+  try {
+    localStorage.setItem(AUTO_ADD_ENABLED_KEY, on ? "1" : "0");
+  } catch {
+  }
+}
+function getAutoAddStrategy() {
+  try {
+    return parseAutoCartStrategy(localStorage.getItem(AUTO_ADD_STRATEGY_KEY));
+  } catch {
+    return "cheapest";
+  }
+}
+function setAutoAddStrategy(strategy) {
+  try {
+    localStorage.setItem(AUTO_ADD_STRATEGY_KEY, strategy);
+  } catch {
+  }
+}
+
+// client/cart-feedback.ts
+var toastHideTimer;
+var toastDismissTimer;
+function showAddToCartToast(displayName, quantity2, detail) {
+  const root = document.getElementById("cartToast");
+  if (!root) return;
+  const main = root.querySelector(".cart-toast__main");
+  const sub = root.querySelector(".cart-toast__detail");
+  const safeName = displayName.length > 72 ? displayName.slice(0, 69).trimEnd() + "\u2026" : displayName;
+  const line1 = `Added to your Kroger cart: ${safeName} \xD7 ${quantity2}`;
+  if (main) {
+    main.textContent = line1;
+  } else {
+    root.textContent = line1 + (detail ? "\n" + detail : "");
+  }
+  if (sub) {
+    if (detail) {
+      sub.textContent = detail;
+      sub.hidden = false;
+    } else {
+      sub.textContent = "";
+      sub.hidden = true;
+    }
+  }
+  if (toastHideTimer) clearTimeout(toastHideTimer);
+  if (toastDismissTimer) clearTimeout(toastDismissTimer);
+  root.hidden = false;
+  root.classList.remove("cart-toast--out");
+  void root.offsetWidth;
+  root.classList.add("cart-toast--visible");
+  toastHideTimer = setTimeout(() => {
+    root.classList.remove("cart-toast--visible");
+    root.classList.add("cart-toast--out");
+    toastDismissTimer = setTimeout(() => {
+      root.hidden = true;
+      root.classList.remove("cart-toast--out");
+      if (main) main.textContent = "";
+      if (sub) {
+        sub.textContent = "";
+        sub.hidden = true;
+      }
+      toastDismissTimer = void 0;
+    }, 280);
+    toastHideTimer = void 0;
+  }, 5e3);
+}
 
 // client/kroger-tokens.ts
 function clearKrogerToken() {
@@ -228,8 +437,10 @@ function updateSignInUI() {
   const hasUser = hasKrogerUserSession();
   const signInBtn = document.getElementById("krogerSignInBtn");
   const signedIn = document.getElementById("krogerSignedIn");
+  const lead = document.getElementById("krogerCardLead");
   if (signInBtn) signInBtn.style.display = hasUser ? "none" : "";
   if (signedIn) signedIn.style.display = hasUser ? "inline" : "none";
+  if (lead) lead.hidden = hasUser;
 }
 async function signInWithKroger() {
   await ensurePublicConfig();
@@ -314,6 +525,10 @@ function cleanGroceryLine(line) {
   const s = (line || "").replace(/^\*+|\*+$/g, "").trim();
   return s.replace(/^[\-\*•·\d.]+\s*/, "").trim();
 }
+function isMealPlanLine(line) {
+  const s = cleanGroceryLine(line).trim();
+  return /^(breakfast|brunch|lunch|dinner|supper|snack)\s*:/i.test(s);
+}
 function parseGroceryLines(text) {
   const lines = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   const result = [];
@@ -327,17 +542,24 @@ function parseGroceryLines(text) {
       continue;
     }
     if (isSectionHeader(line)) continue;
+    if (isMealPlanLine(line)) continue;
     if (inList) {
       const cleaned = cleanGroceryLine(line);
-      if (cleaned.length > 1 && !isSectionHeader(cleaned)) result.push(cleaned);
+      if (cleaned.length > 1 && !isSectionHeader(cleaned) && !isMealPlanLine(cleaned)) {
+        result.push(cleaned);
+      }
       continue;
     }
     if (looksLikeItem.test(line)) {
       const cleaned = cleanGroceryLine(line);
-      if (cleaned.length > 1 && !isSectionHeader(cleaned)) result.push(cleaned);
+      if (cleaned.length > 1 && !isSectionHeader(cleaned) && !isMealPlanLine(cleaned)) {
+        result.push(cleaned);
+      }
     }
   }
-  const fallback = lines.map((l) => cleanGroceryLine(l)).filter((l) => l.length > 2 && l.length < 120 && !isSectionHeader(l));
+  const fallback = lines.map((l) => cleanGroceryLine(l)).filter(
+    (l) => l.length > 2 && l.length < 120 && !isSectionHeader(l) && !isMealPlanLine(l)
+  );
   return result.length ? result : fallback;
 }
 function shortProductName(name) {
@@ -347,11 +569,11 @@ function shortProductName(name) {
 }
 
 // client/cart-api.ts
-async function addProductToCart(product, quantity2) {
+async function addProductToCart(product, quantity2, options) {
   const userToken = await getKrogerUserTokenOrRefresh();
   if (!userToken) {
     alert("Please sign in with Kroger first.");
-    return;
+    return false;
   }
   await ensurePublicConfig();
   const fileProto = window.location.protocol === "file:";
@@ -388,29 +610,32 @@ async function addProductToCart(product, quantity2) {
       const err = result;
       if (err.error === "subscription_required") {
         alert("An active subscription is required. Use Subscribe in the header.");
-        return;
+        return false;
       }
       if (err.code === "AUTH-1007") {
         alert("Cart request was denied. Try signing out and signing in again.");
-        return;
+        return false;
       }
       alert("Cart request was denied. Try signing out and signing in again.");
-      return;
+      return false;
     }
     if (result.code === "AUTH-1007") {
       alert("Cart request was denied. Try signing out and signing in again.");
-      return;
+      return false;
     }
     if (!response.ok) {
       alert(
         "Error adding to cart: " + (result.message || result.code || response.status)
       );
-      return;
+      return false;
     }
     displayCart(result);
+    showAddToCartToast(shortProductName(product.name), quantity2, options?.toastDetail);
+    return true;
   } catch (e) {
     console.error(e);
     alert("Error adding to cart: " + (e instanceof Error ? e.message : e));
+    return false;
   }
 }
 function displayCart(items) {
@@ -556,38 +781,55 @@ async function pickProductAndAdd(index) {
 }
 
 // client/add-to-cart.ts
+var SEARCH_LIMIT_MANUAL = 10;
+var SEARCH_LIMIT_AUTO = 30;
 async function addItem() {
   const productEl = document.getElementById("product");
   const qtyEl = document.getElementById("quantity");
   const productName = productEl?.value?.trim() ?? "";
   const quantity2 = parseInt(qtyEl?.value ?? "", 10);
-  if (!productName || isNaN(quantity2) || quantity2 <= 0) {
-    alert("Please enter valid product name and quantity");
-    return;
+  await searchAndAddToCart(productName, quantity2);
+}
+async function searchAndAddToCart(productName, quantity2) {
+  const name = productName.trim();
+  if (!name || isNaN(quantity2) || quantity2 <= 0) {
+    alert("Please enter a valid product name and quantity.");
+    return false;
   }
   const userToken = await getKrogerUserTokenOrRefresh();
   if (!userToken) {
     alert(
       'Please sign in with Kroger first (click "Sign in with Kroger" above) to add items to your cart.'
     );
-    return;
+    return false;
   }
   try {
     const appToken = await getAccessToken();
-    const searchTerm = shortProductName(productName);
-    const products2 = await searchKrogerProducts(appToken, searchTerm, 10);
+    const searchTerm = shortProductName(name);
+    const auto = getAutoAddEnabled();
+    const limit = auto ? SEARCH_LIMIT_AUTO : SEARCH_LIMIT_MANUAL;
+    const products2 = await searchKrogerProducts(appToken, searchTerm, limit);
     if (products2.length === 0) {
       alert('No products found for "' + searchTerm + '".');
-      return;
+      return false;
     }
     if (products2.length === 1) {
-      await addProductToCart(products2[0], quantity2);
-      return;
+      return addProductToCart(products2[0], quantity2);
+    }
+    if (auto) {
+      const strategy = getAutoAddStrategy();
+      const chosen = pickProductByStrategy(products2, strategy);
+      const priceNote = chosen.price > 0 ? " \xB7 $" + chosen.price.toFixed(2) : "";
+      return addProductToCart(chosen, quantity2, {
+        toastDetail: autoStrategyLabel(strategy) + priceNote
+      });
     }
     showProductPicker(products2, quantity2, searchTerm);
+    return false;
   } catch (error) {
     console.error(error);
     alert("Error adding item to cart: " + (error instanceof Error ? error.message : error));
+    return false;
   }
 }
 
@@ -749,7 +991,164 @@ function initMealPlanForm() {
   }
 }
 
+// client/example-meal-plan.ts
+var EXAMPLE_MEAL_PLAN_TEXT = `Sample meal plan (example \u2014 not from AI)
+
+Day 1
+- Breakfast: Oatmeal with banana and cinnamon
+- Lunch: Turkey and cheese sandwich, apple
+- Dinner: Baked chicken thighs, roasted broccoli, rice
+
+Day 2
+- Breakfast: Greek yogurt with honey and granola
+- Lunch: Leftover chicken rice bowl
+- Dinner: Spaghetti with marinara, side salad
+
+Day 3
+- Breakfast: Scrambled eggs, whole wheat toast, orange juice
+- Lunch: Tuna salad wrap, carrot sticks
+- Dinner: Beef tacos with lettuce, cheddar, salsa
+
+Day 4
+- Breakfast: Pancakes with maple syrup
+- Lunch: Tomato soup with grilled cheese
+- Dinner: Salmon fillet, green beans, quinoa
+
+Day 5
+- Breakfast: Cereal with milk, berries
+- Lunch: Caesar salad with rotisserie chicken
+- Dinner: Stir-fry vegetables and tofu over rice
+
+Day 6
+- Breakfast: Bagel with cream cheese, fruit
+- Lunch: Bean and cheese burrito
+- Dinner: Pork chops, mashed potatoes, peas
+
+Day 7
+- Breakfast: French toast, bacon
+- Lunch: Chef salad with ranch
+- Dinner: Homemade pizza, cucumber salad
+
+Grocery list:
+- milk, 1 gallon
+- eggs, 18 count
+- butter, 1 lb
+- cheddar cheese, 1 lb
+- bread, 2 loaves
+- boneless chicken thighs, 3 lb
+- ground beef, 1.5 lb
+- salmon fillet, 1.5 lb
+- pork chops, 2 lb
+- turkey slices, 1 lb
+- tofu firm, 14 oz
+- spaghetti, 1 lb
+- marinara sauce, 24 oz
+- rice, 2 lb
+- quinoa, 1 lb
+- rolled oats, 18 oz
+- Greek yogurt, 32 oz
+- bananas, 6 count
+- apples, 6 count
+- broccoli crowns, 2 lb
+- fresh spinach, 10 oz
+- romaine lettuce, 2 heads
+- frozen mixed vegetables, 32 oz
+- black beans canned, 2 (15 oz)
+- diced tomatoes canned, 2 (15 oz)
+- tortillas flour, 10 count
+- potatoes russet, 5 lb
+- yellow onions, 3 count
+- garlic, 1 head
+- olive oil, 16 oz
+- salt and black pepper
+`;
+
+// client/auto-cart-ui.ts
+var CHECKBOX_ID = "autoAddToCartEnabled";
+var SELECT_ID = "autoAddToCartStrategy";
+function syncSelectDisabled() {
+  const cb = document.getElementById(CHECKBOX_ID);
+  const sel = document.getElementById(SELECT_ID);
+  if (!cb || !sel) return;
+  sel.disabled = !cb.checked;
+}
+var ADD_ALL_TOOLBAR_ID = "addAllCartToolbar";
+var ADD_SELECTED_BTN_ID = "addSelectedToCartBtn";
+function syncAddAllToCartToolbar() {
+  const toolbar = document.getElementById(ADD_ALL_TOOLBAR_ID);
+  const section = document.getElementById("add-to-cart-section");
+  if (!toolbar || !section) return;
+  const lineCount = document.getElementById("generated-list")?.querySelectorAll(".grocery-line").length ?? 0;
+  const sectionVisible = section.style.display !== "none";
+  const show = getAutoAddEnabled() && sectionVisible && lineCount > 0;
+  toolbar.hidden = !show;
+  const addSelected = document.getElementById(ADD_SELECTED_BTN_ID);
+  if (addSelected) {
+    const checked = document.querySelectorAll("#generated-list .grocery-line-check:checked").length;
+    addSelected.disabled = checked === 0;
+  }
+}
+function initAutoCartPreferencesUi() {
+  const cb = document.getElementById(CHECKBOX_ID);
+  const sel = document.getElementById(SELECT_ID);
+  if (!cb || !sel) return;
+  cb.checked = getAutoAddEnabled();
+  const s = getAutoAddStrategy();
+  if (Array.from(sel.options).some((o) => o.value === s)) {
+    sel.value = s;
+  }
+  syncSelectDisabled();
+  cb.addEventListener("change", () => {
+    setAutoAddEnabled(cb.checked);
+    syncSelectDisabled();
+    syncAddAllToCartToolbar();
+  });
+  sel.addEventListener("change", () => {
+    setAutoAddStrategy(sel.value);
+  });
+  const listEl = document.getElementById("generated-list");
+  listEl?.addEventListener("change", (e) => {
+    const t = e.target;
+    if (t instanceof HTMLInputElement && t.classList.contains("grocery-line-check")) {
+      syncAddAllToCartToolbar();
+    }
+  });
+}
+
 // client/grocery-generation.ts
+var BULK_ADD_DELAY_MS = 400;
+function getCheckedGroceryLinesFromDom() {
+  const list = document.getElementById("generated-list");
+  if (!list) return [];
+  const out = [];
+  list.querySelectorAll(".grocery-line").forEach((row) => {
+    const cb = row.querySelector("input.grocery-line-check");
+    if (cb?.checked) {
+      const line = row.getAttribute("data-line");
+      if (line) out.push(line);
+    }
+  });
+  return out;
+}
+function setBulkCartButtonsDisabled(disabled) {
+  for (const id of ["addAllToCartBtn", "addSelectedToCartBtn"]) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  }
+}
+async function bulkAddGroceryLines(lines) {
+  let added = 0;
+  let failed = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const ok = await searchAndAddToCart(lines[i], 1);
+    if (ok) added++;
+    else failed++;
+    if (i < lines.length - 1) {
+      await new Promise((r) => setTimeout(r, BULK_ADD_DELAY_MS));
+    }
+  }
+  return { added, failed };
+}
 function renderGeneratedResult(text) {
   appState.lastGeneratedText = text;
   const out = document.getElementById("generated");
@@ -761,13 +1160,14 @@ function renderGeneratedResult(text) {
   const items = parseGroceryLines(text);
   if (items.length) {
     listEl.innerHTML = items.map(
-      (line) => '<div class="grocery-line"><span class="label">' + escapeHtml(line) + '</span><button type="button" data-line="' + escapeHtml(line) + '" onclick="addSuggestedItem(this)">Add to cart</button></div>'
+      (line) => '<div class="grocery-line" data-line="' + escapeHtml(line) + '"><label class="grocery-line__pick"><input type="checkbox" class="grocery-line-check" checked aria-label="Include this line when using Add selected to cart" /></label><span class="label">' + escapeHtml(line) + '</span><button type="button" onclick="addSuggestedItem(this)">Add to cart</button></div>'
     ).join("");
     cartSection.style.display = "block";
   } else {
     listEl.innerHTML = "";
     cartSection.style.display = "none";
   }
+  syncAddAllToCartToolbar();
 }
 function saveLLMToStorage() {
   if (!appState.lastGeneratedText) return;
@@ -791,6 +1191,9 @@ function loadSavedLLM() {
   } catch (e) {
     alert("Load failed: " + (e instanceof Error ? e.message : e));
   }
+}
+function loadExampleMealPlan() {
+  renderGeneratedResult(EXAMPLE_MEAL_PLAN_TEXT);
 }
 async function copyGroceryListToClipboard() {
   const lines = parseGroceryLines(appState.lastGeneratedText);
@@ -823,14 +1226,63 @@ async function copyGroceryListToClipboard() {
   }
 }
 function addSuggestedItem(btnOrLine) {
-  const line = typeof btnOrLine === "string" ? btnOrLine : btnOrLine.getAttribute("data-line");
+  let line = typeof btnOrLine === "string" ? btnOrLine : btnOrLine.getAttribute("data-line");
+  if (!line && typeof btnOrLine !== "string") {
+    line = btnOrLine.closest(".grocery-line")?.getAttribute("data-line") ?? null;
+  }
   if (!line) return;
-  const productEl = document.getElementById("product");
-  const qtyEl = document.getElementById("quantity");
-  if (productEl && qtyEl) {
-    productEl.value = line;
-    qtyEl.value = "1";
-    void addItem();
+  void searchAndAddToCart(line, 1);
+}
+function setAllGroceryLineChecks(checked) {
+  document.querySelectorAll("#generated-list .grocery-line-check").forEach((el) => {
+    el.checked = checked;
+  });
+  syncAddAllToCartToolbar();
+}
+async function addAllGroceryToCart() {
+  if (!getAutoAddEnabled()) {
+    alert(
+      'Turn on "Automatically pick a product" first. Then you can add every grocery line at once using your chosen strategy.'
+    );
+    return;
+  }
+  const lines = parseGroceryLines(appState.lastGeneratedText);
+  if (!lines.length) {
+    alert("No grocery lines to add. Generate a list first.");
+    return;
+  }
+  setBulkCartButtonsDisabled(true);
+  try {
+    const { added, failed } = await bulkAddGroceryLines(lines);
+    alert(
+      "Finished: " + added + " line(s) added to cart." + (failed ? " " + failed + " line(s) were not added (see earlier messages)." : "")
+    );
+  } finally {
+    setBulkCartButtonsDisabled(false);
+    syncAddAllToCartToolbar();
+  }
+}
+async function addSelectedGroceryToCart() {
+  if (!getAutoAddEnabled()) {
+    alert(
+      'Turn on "Automatically pick a product" first. Then you can add checked lines using your chosen strategy.'
+    );
+    return;
+  }
+  const lines = getCheckedGroceryLinesFromDom();
+  if (!lines.length) {
+    alert('No lines are checked. Use the checkboxes on each row, or click "Check all".');
+    return;
+  }
+  setBulkCartButtonsDisabled(true);
+  try {
+    const { added, failed } = await bulkAddGroceryLines(lines);
+    alert(
+      "Finished: " + added + " selected line(s) added to cart." + (failed ? " " + failed + " line(s) were not added (see earlier messages)." : "")
+    );
+  } finally {
+    setBulkCartButtonsDisabled(false);
+    syncAddAllToCartToolbar();
   }
 }
 async function generateGroceryList() {
@@ -844,7 +1296,11 @@ async function generateGroceryList() {
   let modelHint = "qwen3:8b";
   const slowHintId = setTimeout(() => {
     if (pre && pre.textContent === "Connecting...") {
-      pre.textContent = "Connecting...\n\nTaking a while? If you're using Docker, pull the model first:\n  docker exec -it kroger-ollama ollama pull " + modelHint;
+      if (getLlmProvider() === "featherless") {
+        pre.textContent = "Connecting\u2026\n\nStill waiting? The server uses Featherless.ai \u2014 check FEATHERLESS_API_KEY, LLM_MODEL, and your plan limits. Docs: https://featherless.ai/docs/overview";
+      } else {
+        pre.textContent = "Connecting\u2026\n\nTaking a while? If you're using Docker, pull the model first:\n  docker exec -it kroger-ollama ollama pull " + modelHint;
+      }
     }
   }, 15e3);
   try {
@@ -936,7 +1392,7 @@ async function generateGroceryList() {
     const raw = err instanceof Error ? err.message : String(err);
     let msg;
     if (err instanceof Error && err.name === "AbortError") {
-      msg = "Request timed out after 10 minutes. Try a smaller model or shorter prompt. In Docker, ensure the model is pulled: docker exec -it kroger-ollama ollama pull " + model;
+      msg = getLlmProvider() === "featherless" ? "Request timed out after 10 minutes. Try lowering LLM_MODEL size or simplifying the meal-plan prompt." : "Request timed out after 10 minutes. Try a smaller model or shorter prompt. In Docker, ensure the model is pulled: docker exec -it kroger-ollama ollama pull " + model;
     } else {
       msg = "Error: " + raw;
       const looksLikeOllamaOrNetwork = /ECONNREFUSED|ENOTFOUND|fetch failed|Cannot reach Ollama|502|model|pull/i.test(raw) || /HTTP 5/.test(raw) && !/DYNAMODB|subscription/i.test(raw);
@@ -944,11 +1400,13 @@ async function generateGroceryList() {
         raw
       );
       if (looksLikeOllamaOrNetwork && !isAuthOrBillingGate) {
-        msg += "\n\nMake sure Ollama is running and the model '" + model + "' is pulled. In Docker: docker exec -it kroger-ollama ollama pull " + model;
+        if (getLlmProvider() === "featherless") {
+          msg += "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, and outbound HTTPS to api.featherless.ai is allowed. See https://featherless.ai/docs/overview";
+        } else {
+          msg += "\n\nMake sure Ollama is running and the model '" + model + "' is pulled. In Docker: docker exec -it kroger-ollama ollama pull " + model;
+        }
       } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
         msg += "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";
-      } else if (/subscription is required|SUBSCRIPTION_REQUIRED/i.test(raw)) {
-        msg += "\n\nSubscribe via the app header, or set SUBSCRIPTION_REQUIRED=false for local dev.";
       }
     }
     out.textContent = msg;
@@ -1030,6 +1488,7 @@ function isAuthFlowPath() {
 async function init() {
   loadStoredKrogerAppToken();
   initMealPlanForm();
+  initAutoCartPreferencesUi();
   let cfg = null;
   try {
     cfg = await ensurePublicConfig();
@@ -1068,6 +1527,10 @@ async function init() {
   if (localStorage.getItem(SAVED_LLM_KEY)) {
     const loadBtn = document.getElementById("loadSavedBtn");
     if (loadBtn) loadBtn.style.display = "";
+  }
+  const loadExampleBtn = document.getElementById("loadExampleBtn");
+  if (loadExampleBtn) {
+    loadExampleBtn.hidden = !cfg?.testMode;
   }
   updateSignInUI();
   const redirectEl = document.getElementById("redirectUriDisplay");
@@ -1116,9 +1579,13 @@ window.signOutKroger = signOutKroger;
 window.addItem = addItem;
 window.closeProductPicker = closeProductPicker;
 window.generateGroceryList = generateGroceryList;
+window.loadExampleMealPlan = loadExampleMealPlan;
 window.loadSavedLLM = loadSavedLLM;
 window.saveLLMToStorage = saveLLMToStorage;
 window.copyGroceryListToClipboard = copyGroceryListToClipboard;
+window.addAllGroceryToCart = addAllGroceryToCart;
+window.addSelectedGroceryToCart = addSelectedGroceryToCart;
+window.setAllGroceryLineChecks = setAllGroceryLineChecks;
 window.addSuggestedItem = addSuggestedItem;
 window.pickProductAndAdd = pickProductAndAdd;
 window.showProductMetadata = showProductMetadata;
