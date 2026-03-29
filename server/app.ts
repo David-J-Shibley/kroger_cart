@@ -13,7 +13,7 @@ import {
   ollamaLimiter,
   proxyLimiter,
 } from "./middleware/rateLimits.js";
-import { ollamaProxyRouter } from "./proxies/ollama.js";
+import { llmProxyRouter } from "./proxies/llmProxy.js";
 import { krogerProxyMiddleware } from "./proxies/kroger.js";
 import { publicConfigHandler } from "./routes/publicConfig.js";
 import { stripeWebhookHandler } from "./routes/stripeWebhook.js";
@@ -89,7 +89,7 @@ export function createApp(): express.Express {
     cognitoAuthMiddleware,
     subscriptionGuardMiddleware,
     ollamaLimiter,
-    ollamaProxyRouter
+    llmProxyRouter
   );
 
   app.use(
@@ -146,4 +146,19 @@ export function logStartupWarnings(): void {
   if (config.subscriptionRequired && (!config.stripeSecretKey || !config.stripePriceId)) {
     logger.warn("SUBSCRIPTION_REQUIRED=true but Stripe env vars are incomplete.");
   }
+  if (config.llmProvider === "featherless" && !config.featherlessApiKey) {
+    logger.warn(
+      "LLM_PROVIDER=featherless (or FEATHERLESS_API_KEY implied) but FEATHERLESS_API_KEY is missing — meal generation will fail."
+    );
+  }
+  logger.info(
+    {
+      llm: config.llmProvider,
+      model: config.llmModel,
+      ...(config.llmProvider === "ollama"
+        ? { ollamaOrigin: config.ollamaOrigin }
+        : { featherlessApiBase: config.featherlessApiBase }),
+    },
+    "LLM backend"
+  );
 }

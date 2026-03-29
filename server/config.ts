@@ -57,11 +57,39 @@ function resolveAuthRequired(): boolean {
   return Boolean(domain && clientId && poolId && clientSecret);
 }
 
+const featherlessApiKey = envStr("FEATHERLESS_API_KEY");
+
+/** Ollama (local/self-hosted) vs Featherless.ai OpenAI-compatible API. */
+function resolveLlmProvider(): "ollama" | "featherless" {
+  const explicit = envStr("LLM_PROVIDER").toLowerCase();
+  if (explicit === "ollama") return "ollama";
+  if (explicit === "featherless") return "featherless";
+  return featherlessApiKey ? "featherless" : "ollama";
+}
+
+const llmProviderResolved = resolveLlmProvider();
+const llmModelResolved =
+  envStr("LLM_MODEL") ||
+  envStr("OLLAMA_MODEL") ||
+  envStr("FEATHERLESS_MODEL") ||
+  (llmProviderResolved === "featherless" ? "Qwen/Qwen2.5-7B-Instruct" : "qwen3:8b");
+
 export const config = {
   port: parseInt(process.env.PORT || "8000", 10),
   host: process.env.HOST || "0.0.0.0",
   ollamaOrigin: process.env.OLLAMA_ORIGIN || "http://127.0.0.1:11434",
   ollamaProxyTimeoutMs: parseInt(process.env.OLLAMA_PROXY_TIMEOUT_MS || "600000", 10),
+
+  /** Server-side only — never exposed in public-config. */
+  featherlessApiKey,
+  /** Base URL without trailing slash, e.g. https://api.featherless.ai/v1 */
+  featherlessApiBase: envStr("FEATHERLESS_API_BASE", "https://api.featherless.ai/v1").replace(
+    /\/+$/,
+    ""
+  ),
+  llmProvider: llmProviderResolved,
+  /** Model id for the active provider (Ollama tag or Featherless / HF-style id). */
+  llmModel: llmModelResolved.trim(),
 
   /** Cognito JWT on protected routes; browser redirect to /auth.html when true. */
   authRequired: resolveAuthRequired(),
@@ -104,6 +132,9 @@ export const config = {
    * Example: https://main.d123amplifyapp.com,https://staging.d123.amplifyapp.com
    */
   browserCorsOrigins: envStr("BROWSER_CORS_ORIGINS"),
+
+  /** When true, public-config exposes testMode so the client can show dev-only UI (e.g. load example). */
+  testMode: envBool("TEST", false),
 
   logLevel: envStr("LOG_LEVEL", "info"),
 };

@@ -1,29 +1,26 @@
-import express, { type Request, type Response } from "express";
+import type { Request, Response } from "express";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 
 const OLLAMA_ORIGIN = config.ollamaOrigin;
 
-export const ollamaProxyRouter = express.Router();
-
-ollamaProxyRouter.use(express.raw({ type: "*/*" }));
-
-ollamaProxyRouter.use(async (req: Request, res: Response): Promise<void> => {
-  if (req.method === "OPTIONS") {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.sendStatus(204);
-    return;
-  }
-
+/**
+ * Forward the request to local/remote Ollama. Pass `bodyOverride` when the body was parsed as JSON (e.g. POST /api/chat).
+ */
+export async function proxyOllamaRequest(
+  req: Request,
+  res: Response,
+  bodyOverride?: Buffer
+): Promise<void> {
   const subPath = req.path || "/";
   const query = req.url.includes("?") ? "?" + req.url.split("?")[1] : "";
   const url = `${OLLAMA_ORIGIN}${subPath}${query}`;
 
   try {
     const headers: HeadersInit = {
-      "Content-Type": req.headers["content-type"] ?? "application/json",
+      "Content-Type": bodyOverride
+        ? "application/json"
+        : String(req.headers["content-type"] ?? "application/json"),
     };
 
     const proxyTimeoutMs = config.ollamaProxyTimeoutMs;
@@ -33,7 +30,14 @@ ollamaProxyRouter.use(async (req: Request, res: Response): Promise<void> => {
       signal: AbortSignal.timeout(proxyTimeoutMs),
     };
 
-    if (req.method !== "GET" && req.method !== "HEAD" && req.body && Buffer.isBuffer(req.body)) {
+    if (bodyOverride && bodyOverride.length) {
+      options.body = new Uint8Array(bodyOverride);
+    } else if (
+      req.method !== "GET" &&
+      req.method !== "HEAD" &&
+      req.body &&
+      Buffer.isBuffer(req.body)
+    ) {
       options.body = new Uint8Array(req.body);
     }
 
@@ -57,9 +61,11 @@ ollamaProxyRouter.use(async (req: Request, res: Response): Promise<void> => {
         message.includes("Failed to fetch") ||
         message.includes("ENOTFOUND"));
     const hint = isConnectionError
-      ? ` Cannot reach Ollama at ${OLLAMA_ORIGIN}. Set OLLAMA_ORIGIN (e.g. in ECS task env).`
+      ? ` Cannot reach Ollama at ${OLLAMA_ORIGIN}. Set OLLAMA_ORIGIN (e.g. in ECS task env) or use Featherless (FEATHERLESS_API_KEY + LLM_PROVIDER=featherless).`
       : "";
     logger.warn({ err: message, url }, "Ollama proxy error");
-    res.status(502).json({ error: message + hint });
+    if (!res.headersSent) {
+      res.status(502).json({ error: message + hint });
+    }
   }
-});
+}

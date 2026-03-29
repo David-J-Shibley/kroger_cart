@@ -104,6 +104,20 @@
            <div id="generated" style="margin-top: 12px; display: none;"></div>
            <div id="add-to-cart-section" class="add-to-cart-section" style="display: none;">
              <h3 class="add-to-cart-heading">Add to cart</h3>
+             <div id="addAllCartToolbar" class="add-all-cart-toolbar" hidden>
+               <div class="add-all-cart-toolbar__inner">
+                 <div class="add-all-cart-toolbar__row add-all-cart-toolbar__row--actions" role="group" aria-label="Bulk add to cart">
+                   <button id="addSelectedToCartBtn" type="button" class="add-bulk-cta" onclick="addSelectedGroceryToCart()">Add selected to cart</button>
+                   <button id="addAllToCartBtn" type="button" class="add-bulk-secondary" onclick="addAllGroceryToCart()">Add all lines to cart</button>
+                 </div>
+                 <div class="add-all-cart-toolbar__links" role="group" aria-label="Row selection">
+                   <button type="button" class="add-bulk-link" onclick="setAllGroceryLineChecks(true)">Check all</button>
+                   <span class="add-bulk-sep" aria-hidden="true">·</span>
+                   <button type="button" class="add-bulk-link" onclick="setAllGroceryLineChecks(false)">Uncheck all</button>
+                 </div>
+                 <p class="add-all-cart-hint">Bulk actions use your auto-pick strategy (quantity 1 per line). Uncheck lines to skip them.</p>
+               </div>
+             </div>
              <div id="generated-list"></div>
            </div>
       </div>

@@ -11,12 +11,15 @@ import { openBillingPortal, subscribeToPlan } from "./billing.js";
 import { SAVED_LLM_KEY } from "./config.js";
 import { addItem } from "./add-to-cart.js";
 import {
+  addAllGroceryToCart,
+  addSelectedGroceryToCart,
   addSuggestedItem,
   copyGroceryListToClipboard,
   generateGroceryList,
   loadExampleMealPlan,
   loadSavedLLM,
   saveLLMToStorage,
+  setAllGroceryLineChecks,
 } from "./grocery-generation.js";
 import { initAutoCartPreferencesUi } from "./auto-cart-ui.js";
 import { initMealPlanForm } from "./meal-plan.js";
@@ -155,6 +158,10 @@ async function init(): Promise<void> {
     const loadBtn = document.getElementById("loadSavedBtn");
     if (loadBtn) loadBtn.style.display = "";
   }
+  const loadExampleBtn = document.getElementById("loadExampleBtn");
+  if (loadExampleBtn) {
+    loadExampleBtn.hidden = !cfg?.testMode;
+  }
   updateSignInUI();
   const redirectEl = document.getElementById("redirectUriDisplay");
   if (redirectEl) {
@@ -211,6 +218,9 @@ declare global {
     loadSavedLLM: () => void;
     saveLLMToStorage: () => void;
     copyGroceryListToClipboard: () => Promise<void>;
+    addAllGroceryToCart: () => Promise<void>;
+    addSelectedGroceryToCart: () => Promise<void>;
+    setAllGroceryLineChecks: (checked: boolean) => void;
     addSuggestedItem: (btnOrLine: HTMLElement | string) => void;
     pickProductAndAdd: (index: number) => Promise<void>;
     showProductMetadata: (index: number) => void;
@@ -232,6 +242,9 @@ window.loadExampleMealPlan = loadExampleMealPlan;
 window.loadSavedLLM = loadSavedLLM;
 window.saveLLMToStorage = saveLLMToStorage;
 window.copyGroceryListToClipboard = copyGroceryListToClipboard;
+window.addAllGroceryToCart = addAllGroceryToCart;
+window.addSelectedGroceryToCart = addSelectedGroceryToCart;
+window.setAllGroceryLineChecks = setAllGroceryLineChecks;
 window.addSuggestedItem = addSuggestedItem;
 window.pickProductAndAdd = pickProductAndAdd;
 window.showProductMetadata = showProductMetadata;

@@ -63,12 +63,16 @@ export function publicConfigHandler(req: Request, res: Response): void {
     krogerClientId: creds?.clientId ?? "",
     krogerRedirectUri: redirectUri,
     krogerLocationId: (process.env.KROGER_LOCATION_ID || "").trim(),
-    ollamaModel: (process.env.OLLAMA_MODEL || "qwen3:8b").trim(),
+    llmProvider: config.llmProvider,
+    llmModel: config.llmModel,
+    /** @deprecated Use llmModel — same value, kept for older clients. */
+    ollamaModel: config.llmModel,
     cognitoDomain: config.cognitoDomain,
     cognitoClientId: cognitoClient,
     cognitoRedirectUri,
     authRequired: config.authRequired,
     authAllowAnonymousBrowsing: config.authAllowAnonymousBrowsing,
     subscriptionRequired: config.subscriptionRequired,
+    testMode: config.testMode,
   });
 }

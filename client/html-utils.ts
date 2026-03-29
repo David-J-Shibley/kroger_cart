@@ -18,6 +18,12 @@ export function cleanGroceryLine(line: string): string {
   return s.replace(/^[\-\*•·\d.]+\s*/, "").trim();
 }
 
+/** Meal-plan rows like "Breakfast: Oatmeal" or "- Lunch: Sandwiches" — not grocery SKUs. */
+export function isMealPlanLine(line: string): boolean {
+  const s = cleanGroceryLine(line).trim();
+  return /^(breakfast|brunch|lunch|dinner|supper|snack)\s*:/i.test(s);
+}
+
 export function parseGroceryLines(text: string): string[] {
   const lines = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   const result: string[] = [];
@@ -35,19 +41,38 @@ export function parseGroceryLines(text: string): string[] {
       continue;
     }
     if (isSectionHeader(line)) continue;
+    if (isMealPlanLine(line)) continue;
     if (inList) {
       const cleaned = cleanGroceryLine(line);
-      if (cleaned.length > 1 && !isSectionHeader(cleaned)) result.push(cleaned);
+      if (
+        cleaned.length > 1 &&
+        !isSectionHeader(cleaned) &&
+        !isMealPlanLine(cleaned)
+      ) {
+        result.push(cleaned);
+      }
       continue;
     }
     if (looksLikeItem.test(line)) {
       const cleaned = cleanGroceryLine(line);
-      if (cleaned.length > 1 && !isSectionHeader(cleaned)) result.push(cleaned);
+      if (
+        cleaned.length > 1 &&
+        !isSectionHeader(cleaned) &&
+        !isMealPlanLine(cleaned)
+      ) {
+        result.push(cleaned);
+      }
     }
   }
   const fallback = lines
     .map((l) => cleanGroceryLine(l))
-    .filter((l) => l.length > 2 && l.length < 120 && !isSectionHeader(l));
+    .filter(
+      (l) =>
+        l.length > 2 &&
+        l.length < 120 &&
+        !isSectionHeader(l) &&
+        !isMealPlanLine(l)
+    );
   return result.length ? result : fallback;
 }
 

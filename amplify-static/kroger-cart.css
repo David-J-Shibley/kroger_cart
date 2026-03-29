@@ -638,6 +638,141 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-
 
 .add-to-cart-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
 .add-to-cart-section .add-to-cart-heading { margin: 0 0 12px 0; font-size: 1.125rem; font-weight: 600; color: var(--accent-warm); }
+.add-all-cart-toolbar {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--surface-muted, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--border);
+}
+
+.section .add-all-cart-toolbar button {
+  margin: 0;
+  transform: none;
+}
+
+.add-all-cart-toolbar__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 36rem;
+}
+
+.add-all-cart-toolbar__row--actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+@media (max-width: 420px) {
+  .add-all-cart-toolbar__row--actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.section .add-all-cart-toolbar .add-bulk-cta,
+.section .add-all-cart-toolbar .add-bulk-secondary {
+  box-sizing: border-box;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.section .add-all-cart-toolbar .add-bulk-cta {
+  border: 1px solid transparent;
+  color: #0a1228;
+  background: linear-gradient(155deg, #3ae89a 0%, var(--color-emerald) 38%, #14a862 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 2px 8px rgba(28, 203, 126, 0.25);
+}
+
+.section .add-all-cart-toolbar .add-bulk-cta:hover:not(:disabled) {
+  background: linear-gradient(155deg, #4df0a5 0%, #22d685 45%, var(--cta-hover) 100%);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(22, 134, 90, 0.3);
+}
+
+.section .add-all-cart-toolbar .add-bulk-secondary {
+  background: #fff;
+  color: var(--app-primary);
+  border: 1px solid var(--app-primary);
+  box-shadow: none;
+}
+
+.section .add-all-cart-toolbar .add-bulk-secondary:hover:not(:disabled) {
+  background: var(--app-primary-light);
+  box-shadow: none;
+}
+
+.add-all-cart-toolbar__links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text-muted, #666);
+}
+
+.section .add-all-cart-toolbar .add-bulk-link {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  width: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: inherit;
+  font-weight: 500;
+  color: var(--app-primary, var(--accent));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.section .add-all-cart-toolbar .add-bulk-link:hover {
+  color: var(--cta-hover, #0d7a4d);
+  background: transparent !important;
+  box-shadow: none !important;
+  transform: none;
+}
+
+.section .add-all-cart-toolbar .add-bulk-link:active {
+  transform: none;
+}
+
+.section .add-all-cart-toolbar .add-bulk-cta:active:not(:disabled),
+.section .add-all-cart-toolbar .add-bulk-secondary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.add-bulk-sep {
+  margin: 0 0.4em;
+  user-select: none;
+  color: var(--text-muted, #888);
+}
+
+.add-all-cart-toolbar .add-all-cart-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted, #666);
+  line-height: 1.4;
+}
 #generated-list { margin-top: 0; }
 
 .grocery-line {
@@ -649,6 +784,20 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-
   background: var(--card);
   margin-bottom: 2px;
   border-radius: var(--radius);
+}
+
+.grocery-line__pick {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+}
+.grocery-line-check {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--color-emerald, #14a862);
+  cursor: pointer;
 }
 
 .grocery-line:last-child { border-bottom: none; margin-bottom: 0; }

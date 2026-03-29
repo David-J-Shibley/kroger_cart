@@ -21,11 +21,12 @@ export async function addItem(): Promise<void> {
  * Search Kroger for a line label (e.g. from the generated grocery list) and add to cart.
  * Uses auto-pick rules when enabled; otherwise opens the product chooser when multiple matches exist.
  */
-export async function searchAndAddToCart(productName: string, quantity: number): Promise<void> {
+/** @returns true if the item was added (or add API reported success); false if blocked, failed, or manual picker opened. */
+export async function searchAndAddToCart(productName: string, quantity: number): Promise<boolean> {
   const name = productName.trim();
   if (!name || isNaN(quantity) || quantity <= 0) {
     alert("Please enter a valid product name and quantity.");
-    return;
+    return false;
   }
 
   const userToken = await getKrogerUserTokenOrRefresh();
@@ -33,7 +34,7 @@ export async function searchAndAddToCart(productName: string, quantity: number):
     alert(
       'Please sign in with Kroger first (click "Sign in with Kroger" above) to add items to your cart.'
     );
-    return;
+    return false;
   }
 
   try {
@@ -44,24 +45,24 @@ export async function searchAndAddToCart(productName: string, quantity: number):
     const products = await searchKrogerProducts(appToken, searchTerm, limit);
     if (products.length === 0) {
       alert('No products found for "' + searchTerm + '".');
-      return;
+      return false;
     }
     if (products.length === 1) {
-      await addProductToCart(products[0], quantity);
-      return;
+      return addProductToCart(products[0], quantity);
     }
     if (auto) {
       const strategy = getAutoAddStrategy();
       const chosen = pickProductByStrategy(products, strategy);
       const priceNote = chosen.price > 0 ? " · $" + chosen.price.toFixed(2) : "";
-      await addProductToCart(chosen, quantity, {
+      return addProductToCart(chosen, quantity, {
         toastDetail: autoStrategyLabel(strategy) + priceNote,
       });
-      return;
     }
     showProductPicker(products, quantity, searchTerm);
+    return false;
   } catch (error) {
     console.error(error);
     alert("Error adding item to cart: " + (error instanceof Error ? error.message : error));
+    return false;
   }
 }

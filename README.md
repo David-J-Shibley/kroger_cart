@@ -93,8 +93,14 @@ The in-app help text shows the redirect URI the client expects so you can match 
 | Kroger store (location ID) | `KROGER_LOCATION_ID` | optional |
 | Server port | `PORT` | `8000` |
 | Ollama URL (proxy target) | `OLLAMA_ORIGIN` | `http://127.0.0.1:11434` |
+| LLM backend | `LLM_PROVIDER` | `ollama` unless `FEATHERLESS_API_KEY` is set, then `featherless` |
+| Featherless API key (server only) | `FEATHERLESS_API_KEY` | (optional; [Featherless.ai](https://featherless.ai/docs/overview)) |
+| Featherless API base | `FEATHERLESS_API_BASE` | `https://api.featherless.ai/v1` |
+| Model id (Ollama or Featherless) | `LLM_MODEL` (falls back to `OLLAMA_MODEL` / `FEATHERLESS_MODEL`) | `qwen3:8b` or `Qwen/Qwen2.5-7B-Instruct` by provider |
 
 The browser loads **public** settings from `GET /api/public-config` (no secrets). See `.env.example`.
+
+**Featherless.ai:** Set `FEATHERLESS_API_KEY` (and optionally `LLM_PROVIDER=featherless`, `LLM_MODEL=<model id from Featherless>`). The server calls OpenAI-compatible `POST …/v1/chat/completions` and streams results through the existing `/ollama-api` path so the UI does not expose your key.
 
 ## Project structure
 

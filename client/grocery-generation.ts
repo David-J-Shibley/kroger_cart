@@ -2,7 +2,13 @@ import { appState } from "./app-state.js";
 import { mergeAppAuth } from "./authed-fetch.js";
 import { getCognitoAccessToken } from "./auth-session.js";
 import { OLLAMA_API_PATH, SAVED_LLM_KEY } from "./config.js";
-import { ensurePublicConfig, getAppOrigin, getOllamaModel, tryGetPublicConfig } from "./public-config.js";
+import {
+  ensurePublicConfig,
+  getAppOrigin,
+  getLlmProvider,
+  getOllamaModel,
+  tryGetPublicConfig,
+} from "./public-config.js";
 import { escapeHtml, parseGroceryLines } from "./html-utils.js";
 import {
   buildMealPlanPrompt,
@@ -12,6 +18,45 @@ import {
 import type { OllamaMessage } from "./types.js";
 import { EXAMPLE_MEAL_PLAN_TEXT } from "./example-meal-plan.js";
 import { searchAndAddToCart } from "./add-to-cart.js";
+import { getAutoAddEnabled } from "./auto-cart-prefs.js";
+import { syncAddAllToCartToolbar } from "./auto-cart-ui.js";
+
+const BULK_ADD_DELAY_MS = 400;
+
+function getCheckedGroceryLinesFromDom(): string[] {
+  const list = document.getElementById("generated-list");
+  if (!list) return [];
+  const out: string[] = [];
+  list.querySelectorAll(".grocery-line").forEach((row) => {
+    const cb = row.querySelector("input.grocery-line-check") as HTMLInputElement | null;
+    if (cb?.checked) {
+      const line = row.getAttribute("data-line");
+      if (line) out.push(line);
+    }
+  });
+  return out;
+}
+
+function setBulkCartButtonsDisabled(disabled: boolean): void {
+  for (const id of ["addAllToCartBtn", "addSelectedToCartBtn"]) {
+    const el = document.getElementById(id) as HTMLButtonElement | null;
+    if (el) el.disabled = disabled;
+  }
+}
+
+async function bulkAddGroceryLines(lines: string[]): Promise<{ added: number; failed: number }> {
+  let added = 0;
+  let failed = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const ok = await searchAndAddToCart(lines[i], 1);
+    if (ok) added++;
+    else failed++;
+    if (i < lines.length - 1) {
+      await new Promise((r) => setTimeout(r, BULK_ADD_DELAY_MS));
+    }
+  }
+  return { added, failed };
+}
 
 export function renderGeneratedResult(text: string): void {
   appState.lastGeneratedText = text;
@@ -32,11 +77,16 @@ export function renderGeneratedResult(text: string): void {
     listEl.innerHTML = items
       .map(
         (line) =>
-          '<div class="grocery-line"><span class="label">' +
+          '<div class="grocery-line" data-line="' +
           escapeHtml(line) +
-          '</span><button type="button" data-line="' +
+          '">' +
+          '<label class="grocery-line__pick">' +
+          '<input type="checkbox" class="grocery-line-check" checked ' +
+          'aria-label="Include this line when using Add selected to cart" />' +
+          "</label>" +
+          '<span class="label">' +
           escapeHtml(line) +
-          '" onclick="addSuggestedItem(this)">Add to cart</button></div>'
+          '</span><button type="button" onclick="addSuggestedItem(this)">Add to cart</button></div>'
       )
       .join("");
     cartSection.style.display = "block";
@@ -44,6 +94,7 @@ export function renderGeneratedResult(text: string): void {
     listEl.innerHTML = "";
     cartSection.style.display = "none";
   }
+  syncAddAllToCartToolbar();
 }
 
 export function saveLLMToStorage(): void {
@@ -109,12 +160,77 @@ export async function copyGroceryListToClipboard(): Promise<void> {
 }
 
 export function addSuggestedItem(btnOrLine: HTMLElement | string): void {
-  const line =
-    typeof btnOrLine === "string"
-      ? btnOrLine
-      : (btnOrLine as HTMLElement).getAttribute("data-line");
+  let line: string | null =
+    typeof btnOrLine === "string" ? btnOrLine : btnOrLine.getAttribute("data-line");
+  if (!line && typeof btnOrLine !== "string") {
+    line = btnOrLine.closest(".grocery-line")?.getAttribute("data-line") ?? null;
+  }
   if (!line) return;
   void searchAndAddToCart(line, 1);
+}
+
+/** Check or uncheck every grocery line (for bulk add). */
+export function setAllGroceryLineChecks(checked: boolean): void {
+  document.querySelectorAll("#generated-list .grocery-line-check").forEach((el) => {
+    (el as HTMLInputElement).checked = checked;
+  });
+  syncAddAllToCartToolbar();
+}
+
+/** Add every parsed grocery line (quantity 1 each), ignoring checkboxes, when auto-pick is enabled. */
+export async function addAllGroceryToCart(): Promise<void> {
+  if (!getAutoAddEnabled()) {
+    alert(
+      'Turn on "Automatically pick a product" first. Then you can add every grocery line at once using your chosen strategy.'
+    );
+    return;
+  }
+  const lines = parseGroceryLines(appState.lastGeneratedText);
+  if (!lines.length) {
+    alert("No grocery lines to add. Generate a list first.");
+    return;
+  }
+  setBulkCartButtonsDisabled(true);
+  try {
+    const { added, failed } = await bulkAddGroceryLines(lines);
+    alert(
+      "Finished: " +
+        added +
+        " line(s) added to cart." +
+        (failed ? " " + failed + " line(s) were not added (see earlier messages)." : "")
+    );
+  } finally {
+    setBulkCartButtonsDisabled(false);
+    syncAddAllToCartToolbar();
+  }
+}
+
+/** Add only checked grocery lines (quantity 1 each) when auto-pick is enabled. */
+export async function addSelectedGroceryToCart(): Promise<void> {
+  if (!getAutoAddEnabled()) {
+    alert(
+      'Turn on "Automatically pick a product" first. Then you can add checked lines using your chosen strategy.'
+    );
+    return;
+  }
+  const lines = getCheckedGroceryLinesFromDom();
+  if (!lines.length) {
+    alert('No lines are checked. Use the checkboxes on each row, or click "Check all".');
+    return;
+  }
+  setBulkCartButtonsDisabled(true);
+  try {
+    const { added, failed } = await bulkAddGroceryLines(lines);
+    alert(
+      "Finished: " +
+        added +
+        " selected line(s) added to cart." +
+        (failed ? " " + failed + " line(s) were not added (see earlier messages)." : "")
+    );
+  } finally {
+    setBulkCartButtonsDisabled(false);
+    syncAddAllToCartToolbar();
+  }
 }
 
 export async function generateGroceryList(): Promise<void> {
@@ -128,9 +244,14 @@ export async function generateGroceryList(): Promise<void> {
   let modelHint = "qwen3:8b";
   const slowHintId = setTimeout(() => {
     if (pre && pre.textContent === "Connecting...") {
-      pre.textContent =
-        "Connecting...\n\nTaking a while? If you're using Docker, pull the model first:\n  docker exec -it kroger-ollama ollama pull " +
-        modelHint;
+      if (getLlmProvider() === "featherless") {
+        pre.textContent =
+          "Connecting…\n\nStill waiting? The server uses Featherless.ai — check FEATHERLESS_API_KEY, LLM_MODEL, and your plan limits. Docs: https://featherless.ai/docs/overview";
+      } else {
+        pre.textContent =
+          "Connecting…\n\nTaking a while? If you're using Docker, pull the model first:\n  docker exec -it kroger-ollama ollama pull " +
+          modelHint;
+      }
     }
   }, 15000);
   try {
@@ -226,8 +347,10 @@ export async function generateGroceryList(): Promise<void> {
     let msg: string;
     if (err instanceof Error && err.name === "AbortError") {
       msg =
-        "Request timed out after 10 minutes. Try a smaller model or shorter prompt. In Docker, ensure the model is pulled: docker exec -it kroger-ollama ollama pull " +
-        model;
+        getLlmProvider() === "featherless"
+          ? "Request timed out after 10 minutes. Try lowering LLM_MODEL size or simplifying the meal-plan prompt."
+          : "Request timed out after 10 minutes. Try a smaller model or shorter prompt. In Docker, ensure the model is pulled: docker exec -it kroger-ollama ollama pull " +
+            model;
     } else {
       msg = "Error: " + raw;
       const looksLikeOllamaOrNetwork =
@@ -238,11 +361,16 @@ export async function generateGroceryList(): Promise<void> {
           raw
         );
       if (looksLikeOllamaOrNetwork && !isAuthOrBillingGate) {
-        msg +=
-          "\n\nMake sure Ollama is running and the model '" +
-          model +
-          "' is pulled. In Docker: docker exec -it kroger-ollama ollama pull " +
-          model;
+        if (getLlmProvider() === "featherless") {
+          msg +=
+            "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, and outbound HTTPS to api.featherless.ai is allowed. See https://featherless.ai/docs/overview";
+        } else {
+          msg +=
+            "\n\nMake sure Ollama is running and the model '" +
+            model +
+            "' is pulled. In Docker: docker exec -it kroger-ollama ollama pull " +
+            model;
+        }
       } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
         msg +=
           "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";
