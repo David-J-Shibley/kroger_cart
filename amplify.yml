@@ -21,7 +21,7 @@ frontend:
       commands:
         - AMPLIFY_WEB_ROOT=amplify-static npm run build
         - ls -la amplify-static
-        - test -f amplify-static/index.html && test -f amplify-static/dist/kroger-cart.js
+        - test -f amplify-static/index.html && test -f amplify-static/landing.html && test -f amplify-static/dist/kroger-cart.js
   artifacts:
     baseDirectory: amplify-static
     files:
@@ -29,3 +29,8 @@ frontend:
   cache:
     paths:
       - node_modules/**/*
+customRules:
+  # Serve marketing landing at site root; app remains at /index.html (Capacitor & Stripe unchanged).
+  - source: "/"
+    target: "/landing.html"
+    status: "200"

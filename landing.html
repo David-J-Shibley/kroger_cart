@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en" class="landing--pending">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meal Plan & Grocery List — Plan meals, build your list, shop Kroger</title>
+  <meta name="description" content="AI-assisted weekly meal plans, one consolidated grocery list, and Kroger search & cart sync.">
+  <link rel="icon" href="/icon.png" type="image/png" sizes="any">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="stylesheet" href="kroger-cart.css">
+  <script>
+    (function () {
+      var p = new URLSearchParams(window.location.search);
+      if (p.get("code") || p.get("error")) {
+        window.location.replace("/auth-callback.html?" + p.toString());
+      }
+    })();
+  </script>
+</head>
+<body class="landing-page">
+  <a class="landing-skip" href="#landing-main">Skip to content</a>
+
+  <header class="landing-top">
+    <div class="landing-top__inner">
+      <a class="landing-brand" href="/">Meal Plan &amp; Grocery List</a>
+      <nav class="landing-top__nav" aria-label="Account">
+        <a class="landing-link" href="/feedback.html">Feedback</a>
+        <a class="landing-btn landing-btn--ghost" href="/auth.html">Sign in</a>
+        <a class="landing-btn landing-btn--primary" href="/auth.html?signup=1">Create account</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="landing-main">
+    <section class="landing-hero">
+      <p class="landing-eyebrow">Meal planning · Kroger · Your LLM</p>
+      <h1 class="landing-hero__title">Turn a week of meals into one grocery list</h1>
+      <p class="landing-hero__lead">
+        Describe your household and preferences, generate a meal plan with your own AI (Ollama, proxied securely by the app),
+        get a single deduplicated shopping list, then search Kroger and add items to your cart.
+      </p>
+      <div class="landing-hero__cta">
+        <a class="landing-btn landing-btn--cta landing-btn--large" href="/auth.html?signup=1">Get started</a>
+        <a class="landing-btn landing-btn--ghost landing-btn--large" href="/auth.html">Sign in</a>
+        <a id="landingGuestLink" class="landing-btn landing-btn--outline landing-btn--large" href="/index.html" hidden>Browse without signing in</a>
+      </div>
+    </section>
+
+    <section class="landing-features" aria-labelledby="landing-features-heading">
+      <h2 id="landing-features-heading" class="landing-section-title">What you can do</h2>
+      <ul class="landing-feature-grid">
+        <li class="landing-feature">
+          <span class="landing-feature__icon" aria-hidden="true">◇</span>
+          <h3 class="landing-feature__title">AI meal plans</h3>
+          <p class="landing-feature__text">Set people, days, and which meals to include. Add dietary notes. Your model returns a concise plan plus one merged list—no duplicate ingredients.</p>
+        </li>
+        <li class="landing-feature">
+          <span class="landing-feature__icon landing-feature__icon--teal" aria-hidden="true">◇</span>
+          <h3 class="landing-feature__title">Kroger connected</h3>
+          <p class="landing-feature__text">Sign in with Kroger, search products, pick the right item, and add it to your cart from each line on your list.</p>
+        </li>
+        <li class="landing-feature">
+          <span class="landing-feature__icon landing-feature__icon--coral" aria-hidden="true">◇</span>
+          <h3 class="landing-feature__title">Your account &amp; plan</h3>
+          <p class="landing-feature__text">Secure sign-in, optional subscription where enabled, and billing self-service—so the app stays available when you need it.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section class="landing-bottom-cta" aria-labelledby="landing-bottom-cta-heading">
+      <h2 id="landing-bottom-cta-heading" class="landing-bottom-cta__title">Ready to plan this week’s shop?</h2>
+      <p class="landing-bottom-cta__text">Create a free account or sign in to open the app.</p>
+      <div class="landing-hero__cta landing-hero__cta--compact">
+        <a class="landing-btn landing-btn--cta landing-btn--large" href="/auth.html?signup=1">Create account</a>
+        <a class="landing-btn landing-btn--ghost landing-btn--large" href="/auth.html">Sign in</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="landing-footer">
+    <p><a href="/feedback.html">Feedback</a> · <a href="/index.html">Open app</a></p>
+  </footer>
+
+  <script>
+    (async function () {
+      try {
+        var apiOrigin = location.origin;
+        try {
+          var dr = await fetch("/deploy-config.json", { cache: "no-store" });
+          if (dr.ok) {
+            var dj = await dr.json();
+            var o = dj.apiOrigin && String(dj.apiOrigin).trim().replace(/\/+$/, "");
+            if (o && /^https?:\/\//i.test(o)) apiOrigin = o;
+          }
+        } catch (e) { /* use page origin */ }
+
+        var pr = await fetch(apiOrigin + "/api/public-config", { cache: "no-store" });
+        if (pr.ok) {
+          var cfg = await pr.json();
+          if (!cfg.authRequired) {
+            window.location.replace("/index.html");
+            return;
+          }
+          try {
+            if (localStorage.getItem("appCognitoAccessToken")) {
+              window.location.replace("/index.html");
+              return;
+            }
+          } catch (e) { /* ignore */ }
+          if (cfg.authAllowAnonymousBrowsing) {
+            var g = document.getElementById("landingGuestLink");
+            if (g) g.hidden = false;
+          }
+        }
+      } catch (e) { /* show landing */ }
+      document.documentElement.classList.remove("landing--pending");
+    })();
+  </script>
+</body>
+</html>

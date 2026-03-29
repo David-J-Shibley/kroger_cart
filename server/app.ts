@@ -100,7 +100,17 @@ export function createApp(): express.Express {
     krogerProxyMiddleware
   );
 
-  app.get("/", oauthRootRedirectShim);
+  app.get("/", (req, res, next) => {
+    oauthRootRedirectShim(req, res, () => {
+      if (!config.authRequired) {
+        next();
+        return;
+      }
+      res.sendFile(path.join(rootDir, "landing.html"), (err) => {
+        if (err) next(err);
+      });
+    });
+  });
   app.use(express.static(rootDir));
 
   return app;

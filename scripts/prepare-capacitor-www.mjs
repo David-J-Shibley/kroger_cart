@@ -9,6 +9,7 @@ const www = path.join(root, process.env.AMPLIFY_WEB_ROOT || "www");
 
 const copyFromRoot = [
   "index.html",
+  "landing.html",
   "icon.png",
   "kroger-cart.css",
   "api-host-bootstrap.js",

@@ -1045,7 +1045,7 @@ async function init() {
     const tok = getCognitoAccessToken();
     if (!tok) {
       if (!cfg.authAllowAnonymousBrowsing) {
-        window.location.href = "/auth.html";
+        window.location.href = "/";
         return;
       }
     } else {
@@ -1053,7 +1053,7 @@ async function init() {
         const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
         if (r.status === 401) {
           clearCognitoSession();
-          window.location.href = "/auth.html";
+          window.location.href = "/";
           return;
         }
       } catch {

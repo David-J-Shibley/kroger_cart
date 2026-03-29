@@ -15,5 +15,5 @@ const port = config.port;
 app.listen(port, host, () => {
   logger.info({ host, port }, "Server listening");
   console.log(`Serving at http://${host}:${port}/`);
-  console.log(`Open http://localhost:${port}/index.html`);
+  console.log(`Open http://localhost:${port}/ (landing) or http://localhost:${port}/index.html (app)`);
 });
