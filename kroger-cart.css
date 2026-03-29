@@ -1014,16 +1014,25 @@ body.landing-page {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.landing-main .landing-btn--ghost {
+/* Light sections use id="landing-main" — not class landing-main */
+#landing-main .landing-btn--ghost {
   background: #fff;
   color: var(--app-primary);
-  border: 1px solid rgba(19, 27, 56, 0.22);
+  border: 1.5px solid rgba(19, 27, 56, 0.32);
+  box-shadow: 0 1px 3px rgba(19, 27, 56, 0.08);
 }
 
-.landing-main .landing-btn--ghost:hover {
+#landing-main .landing-btn--ghost:hover {
   background: var(--app-primary-light);
   border-color: var(--app-primary);
   color: var(--app-primary);
+  box-shadow: 0 2px 8px rgba(19, 27, 56, 0.1);
+}
+
+#landing-main .landing-btn--ghost:focus-visible {
+  outline: none;
+  border-color: var(--color-teal);
+  box-shadow: var(--focus-ring);
 }
 
 .landing-btn--outline {
@@ -1036,16 +1045,23 @@ body.landing-page {
   background: rgba(255, 255, 255, 0.14);
 }
 
-.landing-main .landing-btn--outline {
+#landing-main .landing-btn--outline {
   background: #fff;
   color: var(--app-primary);
-  border: 1px solid var(--border);
+  border: 1.5px solid rgba(19, 27, 56, 0.28);
+  box-shadow: 0 1px 3px rgba(19, 27, 56, 0.06);
 }
 
-.landing-main .landing-btn--outline:hover {
-  background: var(--app-primary-light);
-  border-color: rgba(13, 242, 254, 0.45);
+#landing-main .landing-btn--outline:hover {
+  background: rgba(13, 242, 254, 0.1);
+  border-color: rgba(13, 242, 254, 0.65);
   color: var(--app-primary);
+}
+
+#landing-main .landing-btn--outline:focus-visible {
+  outline: none;
+  border-color: var(--color-teal);
+  box-shadow: var(--focus-ring);
 }
 
 .landing-btn--cta {
@@ -1061,6 +1077,13 @@ body.landing-page {
   background: linear-gradient(155deg, #4df0a5 0%, #22d685 45%, var(--cta-hover) 100%);
   color: #fff;
   box-shadow: 0 4px 16px rgba(22, 134, 90, 0.35);
+}
+
+#landing-main .landing-btn--cta:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--focus-ring),
+    0 2px 12px rgba(28, 203, 126, 0.35);
 }
 
 .landing-btn--large {
@@ -1195,9 +1218,10 @@ body.landing-page {
   padding: 28px 20px;
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(28, 203, 126, 0.1) 0%, rgba(13, 242, 254, 0.1) 100%);
-  border: 1px solid rgba(19, 27, 56, 0.1);
-  box-shadow: var(--shadow);
+    linear-gradient(135deg, rgba(28, 203, 126, 0.12) 0%, rgba(13, 242, 254, 0.14) 100%);
+  border: 1px solid rgba(19, 27, 56, 0.12);
+  border-left: 3px solid var(--color-teal);
+  box-shadow: var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.65) inset;
 }
 
 .landing-bottom-cta__title {
