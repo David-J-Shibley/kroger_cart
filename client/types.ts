@@ -31,4 +31,6 @@ export interface TokenResponse {
 /** One line of NDJSON from POST …/api/chat (Featherless proxy shape). */
 export interface LlmStreamLine {
   message?: { content?: string };
+  error?: string;
+  done?: boolean;
 }

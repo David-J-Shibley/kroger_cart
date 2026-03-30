@@ -52,6 +52,33 @@ function extractAnyAssistantText(chunk: unknown): string {
   return "";
 }
 
+/** SSE `data:` lines may carry OpenAI-style errors instead of `choices` deltas (Featherless still returns HTTP 200). */
+function extractUpstreamErrorMessage(chunk: unknown): string | null {
+  if (!chunk || typeof chunk !== "object") return null;
+  const o = chunk as Record<string, unknown>;
+
+  const err = o.error;
+  if (err && typeof err === "object") {
+    const e = err as { message?: unknown; code?: unknown };
+    if (typeof e.message === "string" && e.message.trim()) {
+      const code = typeof e.code === "string" && e.code.trim() ? e.code.trim() : "";
+      return code ? `${e.message.trim()} (${code})` : e.message.trim();
+    }
+  }
+  if (typeof err === "string" && err.trim()) return err.trim();
+
+  if (o.object === "error") {
+    const m = o.message;
+    if (typeof m === "string" && m.trim()) return m.trim();
+    if (m && typeof m === "object") {
+      const inner = (m as { message?: unknown }).message;
+      if (typeof inner === "string" && inner.trim()) return inner.trim();
+    }
+  }
+
+  return null;
+}
+
 function isDataLine(trimmed: string): boolean {
   return /^data:\s*/i.test(trimmed);
 }
@@ -112,7 +139,6 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
   const url = `${config.featherlessApiBase}/chat/completions`;
   const timeoutMs = config.llmUpstreamTimeoutMs;
 
-  console.log("trying to fetch", url, timeoutMs);
   try {
     logger.info({ upstreamBase: config.featherlessApiBase }, "featherless_upstream_fetch_start");
     const upstream = await fetch(url, {
@@ -131,7 +157,6 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
       signal: AbortSignal.timeout(timeoutMs),
     });
 
-    console.log("upstream", upstream);
     if (!upstream.ok) {
       const errText = await upstream.text();
       logger.warn(
@@ -170,6 +195,7 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
     let sseBuffer = "";
     let forwardedPieces = 0;
     let accumulatedRaw = "";
+    let lastUpstreamError: string | null = null;
 
     const forwardPiece = (piece: string): void => {
       if (!piece) return;
@@ -190,6 +216,12 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
       if (payload === "[DONE]") return;
       try {
         const chunk = JSON.parse(payload) as unknown;
+        const errMsg = extractUpstreamErrorMessage(chunk);
+        if (errMsg) {
+          lastUpstreamError = errMsg;
+          logger.warn({ model, message: errMsg }, "featherless_sse_error_chunk");
+          return;
+        }
         const piece = extractAnyAssistantText(chunk);
         if (piece.length > 0) forwardPiece(piece);
       } catch {
@@ -243,7 +275,11 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
 
     if (forwardedPieces === 0) {
       logger.warn(
-        { model, rawHead: accumulatedRaw.slice(0, 400) },
+        {
+          model,
+          streamError: lastUpstreamError,
+          rawHead: accumulatedRaw.slice(0, 400),
+        },
         "Featherless stream had no forwardable text; trying non-stream completion"
       );
       try {
@@ -263,12 +299,19 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
           signal: AbortSignal.timeout(Math.min(timeoutMs, 180_000)),
         });
         if (retry.ok) {
-          const j = (await retry.json()) as {
-            choices?: Array<{ message?: { content?: string } }>;
-          };
-          const content = j.choices?.[0]?.message?.content ?? "";
-          if (typeof content === "string" && content.length > 0) {
-            forwardPiece(content);
+          const j = (await retry.json()) as unknown;
+          const retryErr = extractUpstreamErrorMessage(j);
+          if (retryErr) {
+            lastUpstreamError = lastUpstreamError ?? retryErr;
+            logger.warn({ model, message: retryErr }, "Featherless non-stream body was an error object");
+          } else {
+            const body = j as {
+              choices?: Array<{ message?: { content?: string } }>;
+            };
+            const content = body.choices?.[0]?.message?.content ?? "";
+            if (typeof content === "string" && content.length > 0) {
+              forwardPiece(content);
+            }
           }
         } else {
           const errText = await retry.text();
@@ -280,10 +323,14 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
     }
 
     if (forwardedPieces === 0) {
-      logger.warn({ model }, "Featherless returned no assistant content — check model id and API key/plan");
+      const clientMsg =
+        lastUpstreamError ??
+        "Featherless returned no assistant text. Check LLM_MODEL, plan limits, and https://featherless.ai/docs/api-reference-error-codes";
+      logger.warn({ model, streamError: lastUpstreamError }, "Featherless returned no assistant content");
+      res.write(JSON.stringify({ error: clientMsg, done: true }) + "\n");
+    } else {
+      res.write(JSON.stringify({ model, done: true }) + "\n");
     }
-
-    res.write(JSON.stringify({ model, done: true }) + "\n");
     res.end();
   } catch (err) {
     logger.warn({ err: err instanceof Error ? err.message : err }, "Featherless fetch failed");

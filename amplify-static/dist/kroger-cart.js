@@ -1722,25 +1722,36 @@ async function generateGroceryList() {
       buffer = lines.pop() || "";
       for (const line of lines) {
         if (!line.trim()) continue;
+        let obj;
         try {
-          const obj = JSON.parse(line);
-          const content = obj.message?.content;
-          if (content) {
-            text += content;
-            if (pre) {
-              pre.textContent = text;
-              pre.scrollTop = pre.scrollHeight;
-            }
-          }
+          obj = JSON.parse(line);
         } catch {
+          continue;
+        }
+        if (typeof obj.error === "string" && obj.error.trim()) {
+          throw new Error(obj.error.trim());
+        }
+        const content = obj.message?.content;
+        if (content) {
+          text += content;
+          if (pre) {
+            pre.textContent = text;
+            pre.scrollTop = pre.scrollHeight;
+          }
         }
       }
     }
     if (buffer.trim()) {
       try {
         const obj = JSON.parse(buffer);
+        if (typeof obj.error === "string" && obj.error.trim()) {
+          throw new Error(obj.error.trim());
+        }
         if (obj.message?.content) text += obj.message.content;
-      } catch {
+      } catch (e) {
+        if (e instanceof Error && e.message && !/^Unexpected token/i.test(e.message)) {
+          throw e;
+        }
       }
     }
     if (pre) pre.textContent = text;
