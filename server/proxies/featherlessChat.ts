@@ -10,25 +10,67 @@ type LlmChatBody = {
   options?: { num_predict?: number };
 };
 
-/** OpenAI-style stream chunk: string content or array of { text } parts (newer APIs). */
+function contentFromParts(c: unknown): string {
+  if (typeof c === "string") return c;
+  if (!Array.isArray(c)) return "";
+  let out = "";
+  for (const part of c) {
+    if (part && typeof part === "object") {
+      const t = (part as { text?: string }).text;
+      if (typeof t === "string") out += t;
+    }
+  }
+  return out;
+}
+
+/** Token deltas from streaming chunks (`delta.content`). */
 function extractDeltaText(chunk: unknown): string {
   if (!chunk || typeof chunk !== "object") return "";
   const choices = (chunk as { choices?: unknown }).choices;
   if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return "";
   const delta = (choices[0] as { delta?: unknown }).delta;
   if (!delta || typeof delta !== "object") return "";
-  const c = (delta as { content?: unknown }).content;
-  if (typeof c === "string") return c;
-  if (Array.isArray(c)) {
-    let out = "";
-    for (const part of c) {
-      if (part && typeof part === "object" && typeof (part as { text?: string }).text === "string") {
-        out += (part as { text: string }).text;
-      }
-    }
-    return out;
-  }
+  return contentFromParts((delta as { content?: unknown }).content);
+}
+
+/**
+ * Any assistant text in an OpenAI-style chunk: streaming deltas, final `message`, or legacy `text`.
+ */
+function extractAnyAssistantText(chunk: unknown): string {
+  const fromDelta = extractDeltaText(chunk);
+  if (fromDelta) return fromDelta;
+  if (!chunk || typeof chunk !== "object") return "";
+  const choices = (chunk as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return "";
+  const ch0 = choices[0] as {
+    message?: { content?: unknown };
+    text?: unknown;
+  };
+  const mc = contentFromParts(ch0.message?.content);
+  if (mc) return mc;
+  if (typeof ch0.text === "string") return ch0.text;
   return "";
+}
+
+function isDataLine(trimmed: string): boolean {
+  return /^data:\s*/i.test(trimmed);
+}
+
+function dataPayload(trimmed: string): string {
+  return trimmed.replace(/^data:\s*/i, "").trim();
+}
+
+/** Single JSON completion body (some gateways return this even when stream was requested). */
+function tryParseFullCompletionJson(raw: string): string {
+  const t = raw.trim();
+  if (!t.startsWith("{")) return "";
+  try {
+    const j = JSON.parse(t) as { choices?: Array<{ message?: { content?: string } }> };
+    const c = j.choices?.[0]?.message?.content;
+    return typeof c === "string" ? c : "";
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -118,47 +160,118 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
     const decoder = new TextDecoder();
     let sseBuffer = "";
     let forwardedPieces = 0;
+    let accumulatedRaw = "";
+
+    const forwardPiece = (piece: string): void => {
+      if (!piece) return;
+      forwardedPieces += 1;
+      res.write(
+        JSON.stringify({
+          model,
+          message: { role: "assistant", content: piece },
+          done: false,
+        }) + "\n"
+      );
+    };
+
+    const processSseLine = (line: string): void => {
+      const trimmed = line.replace(/\r$/, "").trim();
+      if (!trimmed || !isDataLine(trimmed)) return;
+      const payload = dataPayload(trimmed);
+      if (payload === "[DONE]") return;
+      try {
+        const chunk = JSON.parse(payload) as unknown;
+        const piece = extractAnyAssistantText(chunk);
+        if (piece.length > 0) forwardPiece(piece);
+      } catch {
+        /* ignore malformed SSE JSON */
+      }
+    };
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        sseBuffer += decoder.decode(value, { stream: true });
+        const chunkText = decoder.decode(value, { stream: true });
+        accumulatedRaw += chunkText;
+        sseBuffer += chunkText;
         const lines = sseBuffer.split("\n");
         sseBuffer = lines.pop() ?? "";
 
         for (const line of lines) {
-          const trimmed = line.replace(/\r$/, "").trim();
-          if (!trimmed.startsWith("data:")) continue;
-          const payload = trimmed.slice(5).trim();
-          if (payload === "[DONE]") continue;
-          try {
-            const chunk = JSON.parse(payload) as unknown;
-            const piece = extractDeltaText(chunk);
-            if (typeof piece === "string" && piece.length > 0) {
-              forwardedPieces += 1;
-              res.write(
-                JSON.stringify({
-                  model,
-                  message: { role: "assistant", content: piece },
-                  done: false,
-                }) + "\n"
-              );
-            }
-          } catch {
-            /* ignore malformed SSE JSON */
-          }
+          processSseLine(line);
         }
       }
     } finally {
       reader.releaseLock?.();
     }
 
+    /** Trailing `data: {...}` often has no final newline — was dropped from the stream parser. */
+    for (const line of sseBuffer.split("\n")) {
+      processSseLine(line);
+    }
+
+    if (forwardedPieces === 0) {
+      const asFull = tryParseFullCompletionJson(accumulatedRaw);
+      if (asFull) {
+        forwardPiece(asFull);
+      }
+    }
+
+    /** Raw NDJSON lines (no `data:` SSE wrapper) — some proxies emit this. */
+    if (forwardedPieces === 0) {
+      for (const line of accumulatedRaw.split("\n")) {
+        const t = line.trim();
+        if (!t.startsWith("{")) continue;
+        try {
+          const piece = extractAnyAssistantText(JSON.parse(t) as unknown);
+          if (piece.length > 0) forwardPiece(piece);
+        } catch {
+          /* not JSON */
+        }
+      }
+    }
+
     if (forwardedPieces === 0) {
       logger.warn(
-        { model },
-        "Featherless stream ended with no text deltas — check model id, API errors, or SSE format"
+        { model, rawHead: accumulatedRaw.slice(0, 400) },
+        "Featherless stream had no forwardable text; trying non-stream completion"
       );
+      try {
+        const retry = await fetch(url, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${config.featherlessApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            stream: false,
+            max_tokens: maxTokens,
+            temperature: 0.7,
+          }),
+          signal: AbortSignal.timeout(Math.min(timeoutMs, 180_000)),
+        });
+        if (retry.ok) {
+          const j = (await retry.json()) as {
+            choices?: Array<{ message?: { content?: string } }>;
+          };
+          const content = j.choices?.[0]?.message?.content ?? "";
+          if (typeof content === "string" && content.length > 0) {
+            forwardPiece(content);
+          }
+        } else {
+          const errText = await retry.text();
+          logger.warn({ status: retry.status, body: errText.slice(0, 500) }, "Featherless non-stream retry failed");
+        }
+      } catch (e) {
+        logger.warn({ err: e instanceof Error ? e.message : e }, "Featherless non-stream retry error");
+      }
+    }
+
+    if (forwardedPieces === 0) {
+      logger.warn({ model }, "Featherless returned no assistant content — check model id and API key/plan");
     }
 
     res.write(JSON.stringify({ model, done: true }) + "\n");
