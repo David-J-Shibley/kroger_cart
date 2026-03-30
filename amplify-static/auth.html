@@ -7,11 +7,33 @@
   <link rel="icon" href="/icon.png" type="image/png" sizes="any">
   <link rel="apple-touch-icon" href="/icon.png">
   <link rel="stylesheet" href="kroger-cart.css">
-  <style>body { max-width: 720px; margin: 2rem auto; padding: 0 24px; }</style>
 </head>
-<body>
-  <p id="msg">Checking session…</p>
-  <p><a href="/">← Home</a> · <a href="/index.html">App</a> · <a href="/feedback.html">Feedback</a></p>
+<body class="auth-page">
+  <main class="auth-page__shell" role="main">
+    <div class="auth-page__card">
+      <div class="auth-page__brand">
+        <img
+          class="auth-page__logo"
+          src="/logo.png"
+          alt="Grocery Goblin"
+          width="104"
+          height="104"
+          decoding="async"
+          onerror="this.onerror=null;this.src='/icon.png'"
+        />
+        <h1 class="auth-page__title">Grocery Goblin</h1>
+        <p class="auth-page__tagline">Meal plans &amp; Kroger cart, together.</p>
+      </div>
+      <p class="auth-page__status" id="msg" role="status" aria-live="polite">Checking session…</p>
+      <nav class="auth-page__nav" aria-label="Site links">
+        <a href="/">← Home</a>
+        <span class="auth-page__nav-sep" aria-hidden="true">·</span>
+        <a href="/index.html">App</a>
+        <span class="auth-page__nav-sep" aria-hidden="true">·</span>
+        <a href="/feedback.html">Feedback</a>
+      </nav>
+    </div>
+  </main>
   <script src="api-host-bootstrap.js"></script>
   <script>
     (async function () {

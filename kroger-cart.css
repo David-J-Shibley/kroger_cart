@@ -1624,3 +1624,149 @@ body.landing-page {
 .landing-footer a:hover {
   color: var(--cta-hover);
 }
+
+/* --- Auth gate (auth.html): full-bleed brand backdrop + card --- */
+body.auth-page {
+  max-width: none;
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 18px 36px;
+  background: transparent;
+}
+
+body.auth-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: var(--page-bg-deep);
+  background-image:
+    radial-gradient(ellipse 90% 55% at 50% -25%, rgba(13, 242, 254, 0.35), transparent 58%),
+    radial-gradient(ellipse 70% 50% at 105% 8%, rgba(28, 203, 126, 0.28), transparent 52%),
+    radial-gradient(ellipse 65% 48% at -5% 92%, rgba(254, 108, 85, 0.22), transparent 50%),
+    linear-gradient(
+      168deg,
+      #eef3fb 0%,
+      var(--page-bg-mid) 38%,
+      #e4eaf4 58%,
+      rgba(19, 27, 56, 0.08) 100%
+    );
+  pointer-events: none;
+}
+
+.auth-page__shell {
+  width: 100%;
+  max-width: 420px;
+}
+
+.auth-page__card {
+  position: relative;
+  padding: 32px 26px 28px;
+  border-radius: 18px;
+  border: 1px solid rgba(19, 27, 56, 0.1);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.97) 0%, rgba(252, 253, 255, 0.99) 45%, rgba(248, 250, 252, 0.96) 100%),
+    linear-gradient(200deg, rgba(13, 242, 254, 0.07) 0%, transparent 42%),
+    linear-gradient(165deg, rgba(28, 203, 126, 0.06) 0%, transparent 48%);
+  box-shadow:
+    0 20px 50px rgba(19, 27, 56, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.95) inset;
+  overflow: hidden;
+}
+
+.auth-page__card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(13, 242, 254, 0.95) 0%,
+    var(--color-emerald) 48%,
+    rgba(254, 108, 85, 0.85) 100%
+  );
+}
+
+.auth-page__brand {
+  text-align: center;
+  margin-bottom: 22px;
+}
+
+.auth-page__logo {
+  display: block;
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 16px;
+  object-fit: contain;
+  border-radius: 20px;
+  box-shadow:
+    0 8px 24px rgba(19, 27, 56, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+}
+
+.auth-page__title {
+  margin: 0 0 8px;
+  font-size: clamp(1.5rem, 4vw, 1.75rem);
+  font-weight: 700;
+  color: var(--app-primary);
+  letter-spacing: -0.03em;
+}
+
+.auth-page__tagline {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  color: #5c6a7d;
+}
+
+.auth-page__status {
+  margin: 0 0 22px;
+  min-height: 3.25rem;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  text-align: center;
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--app-primary);
+  background:
+    linear-gradient(135deg, rgba(13, 242, 254, 0.08) 0%, rgba(28, 203, 126, 0.07) 100%);
+  border: 1px solid rgba(205, 211, 222, 0.75);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+
+.auth-page__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 2px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.auth-page__nav a {
+  color: var(--app-primary);
+  text-decoration: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.auth-page__nav a:hover {
+  color: var(--cta-hover);
+  background: rgba(28, 203, 126, 0.1);
+}
+
+.auth-page__nav-sep {
+  color: var(--text-muted);
+  user-select: none;
+  font-weight: 400;
+  padding: 0 2px;
+}
