@@ -1855,7 +1855,7 @@ function ensureLlmModelRowDom() {
   const hint = document.createElement("p");
   hint.id = "llmModelHint";
   hint.className = "meal-plan-hint";
-  hint.textContent = "Choose another model if you see a capacity error. Options come from deploy-config (llmModels); ids must match your Featherless plan.";
+  hint.textContent = "Choose another model if you see a capacity error.";
   row.appendChild(label);
   row.appendChild(sel);
   row.appendChild(hint);

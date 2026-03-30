@@ -138,7 +138,7 @@
              <div class="meal-plan-row meal-plan-row--full" id="llmModelRow" hidden>
                <label for="llmModelSelect">Meal-plan model</label>
                <select id="llmModelSelect" aria-describedby="llmModelHint"></select>
-               <p id="llmModelHint" class="meal-plan-hint">Choose another model if you see a capacity error. Options come from deploy-config (<code>llmModels</code>); ids must match your Featherless plan.</p>
+               <p id="llmModelHint" class="meal-plan-hint">Choose another model if you see a capacity error.</p>
              </div>
            </div>
            <div class="section-generate-actions">
@@ -225,7 +225,11 @@
             <a class="app-footer__btn app-footer__btn--secondary" href="/auth.html">App account</a>
           </nav>
 
-          <p class="app-footer__legal">Not affiliated with The Kroger Co. Kroger is a trademark of its owner.</p>
+          <p class="app-footer__legal">
+            <a href="/terms.html">Terms &amp; Conditions</a>
+            <span class="app-footer__legal-sep" aria-hidden="true">·</span>
+            Not affiliated with The Kroger Co. Kroger is a trademark of its owner.
+          </p>
         </div>
       </div>
     </footer>
