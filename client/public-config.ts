@@ -1,6 +1,6 @@
 /** Public deployment settings from static `deploy-config.json` (same origin as the HTML). No /api/public-config. */
 
-import { SAVED_LLM_MODEL_KEY } from "./config.js";
+import { SAVED_KROGER_LOCATION_ID_KEY, SAVED_LLM_MODEL_KEY } from "./config.js";
 
 const DEFAULT_LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct";
 
@@ -197,7 +197,13 @@ export function apiUrl(path: string): string {
 }
 
 export function getKrogerLocationId(): string {
-  return tryGetPublicConfig()?.krogerLocationId ?? "";
+  try {
+    const saved = localStorage.getItem(SAVED_KROGER_LOCATION_ID_KEY);
+    if (saved != null && saved.trim() !== "") return saved.trim();
+  } catch {
+    /* storage blocked */
+  }
+  return (tryGetPublicConfig()?.krogerLocationId ?? "").trim();
 }
 
 /** Featherless model id: dropdown selection if present, else saved choice, else deploy-config default. */

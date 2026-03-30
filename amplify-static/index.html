@@ -53,6 +53,16 @@
              <button type="button" id="krogerSignInBtn" class="btn btn-kroger-cta" onclick="signInWithKroger()">Sign in with Kroger</button>
              <span id="krogerSignedIn" style="display:none;">Signed in. <button type="button" onclick="signOutKroger()">Sign out</button></span>
          </p>
+         <div class="kroger-store-location" id="krogerStoreLocationBlock">
+           <label for="krogerStoreUrlInput">Store for search &amp; prices</label>
+           <p class="kroger-store-location__lead">Paste a store’s page URL from kroger.com — we use the id at the end of the address (e.g. …/014/<strong>00513</strong>).</p>
+           <div class="kroger-store-location__row">
+             <input type="text" id="krogerStoreUrlInput" class="kroger-store-location__input" autocomplete="off" placeholder="https://www.kroger.com/stores/grocery/…" />
+             <button type="button" id="krogerStoreApplyBtn" class="kroger-store-location__apply">Apply</button>
+           </div>
+           <p id="krogerLocationStatus" class="kroger-location-status" role="status"></p>
+           <button type="button" id="krogerStoreClearBtn" class="kroger-store-location__clear" hidden>Clear saved store</button>
+         </div>
        </div>
 
        <div class="card card--auto-cart" id="autoCartCard">

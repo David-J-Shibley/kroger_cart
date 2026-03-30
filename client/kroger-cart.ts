@@ -23,6 +23,7 @@ import {
   setAllGroceryLineChecks,
 } from "./grocery-generation.js";
 import { initAutoCartPreferencesUi } from "./auto-cart-ui.js";
+import { initKrogerLocationUi } from "./kroger-location-ui.js";
 import { initLlmModelSelector } from "./llm-model-ui.js";
 import { initMealPlanForm } from "./meal-plan.js";
 import {
@@ -153,6 +154,7 @@ async function init(): Promise<void> {
         "Could not load deploy-config.json from this site. Add deploy-config.json next to index.html (copy deploy-config.sample.json) and ensure apiOrigin points at your API when UI and API are on different hosts.";
     }
   }
+  initKrogerLocationUi();
   if (cfg && cfg.authRequired && !isAuthFlowPath()) {
     const signedIn = await isAppSignedIn();
     if (!signedIn) {

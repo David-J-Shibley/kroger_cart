@@ -861,6 +861,97 @@ body.legal-page .main-content {
 
 #krogerSignedIn button:hover { background: var(--app-primary-light); }
 
+.kroger-store-location {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(19, 27, 56, 0.1);
+}
+
+.kroger-store-location label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--app-primary);
+  margin-bottom: 6px;
+}
+
+.kroger-store-location__lead {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.kroger-store-location__lead strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.kroger-store-location__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.kroger-store-location__input {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  background: #fff;
+  color: var(--text);
+}
+
+.kroger-store-location__input:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-color: rgba(13, 242, 254, 0.55);
+}
+
+.kroger-store-location__apply {
+  flex: 0 0 auto;
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #fff;
+  color: var(--app-primary);
+  border: 1px solid var(--app-primary);
+  transition: background 0.15s ease;
+}
+
+.kroger-store-location__apply:hover {
+  background: var(--app-primary-light);
+}
+
+.kroger-location-status {
+  margin: 10px 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.kroger-store-location__clear {
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--app-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.kroger-store-location__clear:hover {
+  color: var(--accent-hover);
+}
+
 .add-row {
   display: flex;
   flex-wrap: wrap;

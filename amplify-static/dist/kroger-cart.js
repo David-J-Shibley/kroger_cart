@@ -34,6 +34,7 @@ function clearCognitoSession() {
 // client/config.ts
 var SAVED_LLM_KEY = "krogerCartSavedLLM";
 var SAVED_LLM_MODEL_KEY = "krogerCartLlmModel";
+var SAVED_KROGER_LOCATION_ID_KEY = "krogerCartKrogerLocationId";
 var SAVED_MEAL_PREFS_KEY = "krogerCartMealPrefs";
 var AUTO_ADD_ENABLED_KEY = "krogerCartAutoAddEnabled";
 var AUTO_ADD_STRATEGY_KEY = "krogerCartAutoAddStrategy";
@@ -157,7 +158,12 @@ function apiUrl(path) {
   return b + p;
 }
 function getKrogerLocationId() {
-  return tryGetPublicConfig()?.krogerLocationId ?? "";
+  try {
+    const saved = localStorage.getItem(SAVED_KROGER_LOCATION_ID_KEY);
+    if (saved != null && saved.trim() !== "") return saved.trim();
+  } catch {
+  }
+  return (tryGetPublicConfig()?.krogerLocationId ?? "").trim();
 }
 function getLlmModel() {
   const cfg = tryGetPublicConfig();
@@ -1827,6 +1833,112 @@ async function generateGroceryList() {
   }
 }
 
+// client/kroger-store-url.ts
+function extractKrogerStoreIdFromUserInput(raw) {
+  const s = raw.trim();
+  if (!s) return null;
+  if (/^\d+$/.test(s)) return s;
+  let href = s;
+  if (!/^https?:\/\//i.test(href)) {
+    if (/kroger\.com/i.test(href)) {
+      href = href.replace(/^\/+/, "");
+      if (!/^https?:\/\//i.test(href)) href = "https://" + href;
+    }
+  }
+  try {
+    const u = new URL(href);
+    const host = u.hostname.toLowerCase();
+    if (host !== "kroger.com" && !host.endsWith(".kroger.com")) return null;
+    const parts = u.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+    if (parts.length === 0) return null;
+    const last = parts[parts.length - 1];
+    if (/^\d+$/.test(last)) return last;
+  } catch {
+    return null;
+  }
+  return null;
+}
+function readSavedKrogerLocationOverride() {
+  try {
+    const v = localStorage.getItem(SAVED_KROGER_LOCATION_ID_KEY);
+    return v != null && v.trim() !== "" ? v.trim() : "";
+  } catch {
+    return "";
+  }
+}
+function writeSavedKrogerLocationOverride(id) {
+  try {
+    const t = id.trim();
+    if (t) localStorage.setItem(SAVED_KROGER_LOCATION_ID_KEY, t);
+    else localStorage.removeItem(SAVED_KROGER_LOCATION_ID_KEY);
+  } catch {
+  }
+}
+function clearSavedKrogerLocationOverride() {
+  try {
+    localStorage.removeItem(SAVED_KROGER_LOCATION_ID_KEY);
+  } catch {
+  }
+}
+
+// client/kroger-location-ui.ts
+function deployDefaultLocationId() {
+  return (tryGetPublicConfig()?.krogerLocationId ?? "").trim();
+}
+function syncKrogerLocationStatus() {
+  const status = document.getElementById("krogerLocationStatus");
+  const clearBtn = document.getElementById("krogerStoreClearBtn");
+  if (!status) return;
+  const override = readSavedKrogerLocationOverride();
+  const effective = getKrogerLocationId();
+  const fallback = deployDefaultLocationId();
+  if (effective) {
+    if (override) {
+      status.textContent = "Using store " + effective + " (from your link). Product search and prices use this location.";
+    } else if (fallback) {
+      status.textContent = "Using store " + effective + " from site configuration. Paste a store URL below to override.";
+    } else {
+      status.textContent = "Using store " + effective + ".";
+    }
+  } else {
+    status.textContent = "No store selected \u2014 search may omit local pricing. Paste a Kroger store page URL (or a numeric store id) and click Apply.";
+  }
+  if (clearBtn) {
+    clearBtn.hidden = !override;
+  }
+}
+function applyKrogerStoreFromInput() {
+  const input = document.getElementById("krogerStoreUrlInput");
+  if (!input) return;
+  const parsed = extractKrogerStoreIdFromUserInput(input.value);
+  if (!parsed) {
+    alert(
+      "Could not find a store id. Paste a full URL like https://www.kroger.com/stores/grocery/\u2026/00513 or enter digits only (e.g. 00513)."
+    );
+    return;
+  }
+  writeSavedKrogerLocationOverride(parsed);
+  input.value = "";
+  syncKrogerLocationStatus();
+}
+function initKrogerLocationUi() {
+  const applyBtn = document.getElementById("krogerStoreApplyBtn");
+  const clearBtn = document.getElementById("krogerStoreClearBtn");
+  const input = document.getElementById("krogerStoreUrlInput");
+  syncKrogerLocationStatus();
+  applyBtn?.addEventListener("click", () => applyKrogerStoreFromInput());
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      applyKrogerStoreFromInput();
+    }
+  });
+  clearBtn?.addEventListener("click", () => {
+    clearSavedKrogerLocationOverride();
+    syncKrogerLocationStatus();
+  });
+}
+
 // client/llm-model-ui.ts
 function mealPlanOptionsEl() {
   return document.getElementById("mealPlanOptions");
@@ -2004,6 +2116,7 @@ async function init() {
       boot.textContent = "Could not load deploy-config.json from this site. Add deploy-config.json next to index.html (copy deploy-config.sample.json) and ensure apiOrigin points at your API when UI and API are on different hosts.";
     }
   }
+  initKrogerLocationUi();
   if (cfg && cfg.authRequired && !isAuthFlowPath()) {
     const signedIn = await isAppSignedIn();
     if (!signedIn) {
