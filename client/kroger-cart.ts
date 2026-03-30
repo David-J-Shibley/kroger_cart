@@ -7,6 +7,7 @@
 import { loadStoredKrogerAppToken } from "./app-state.js";
 import { mergeAppAuth } from "./authed-fetch.js";
 import { clearCognitoSession, getCognitoAccessToken } from "./auth-session.js";
+import { dismissKrogerBulkDoneBanner } from "./kroger-app-launch.js";
 import { openBillingPortal, subscribeToPlan } from "./billing.js";
 import { SAVED_LLM_KEY } from "./config.js";
 import { addItem } from "./add-to-cart.js";
@@ -230,6 +231,7 @@ declare global {
     goAppSignUp: () => void;
     subscribeToPlan: () => Promise<void>;
     openBillingPortal: () => Promise<void>;
+    dismissKrogerBulkDoneBanner: () => void;
   }
 }
 
@@ -254,5 +256,6 @@ window.goAppSignIn = goAppSignIn;
 window.goAppSignUp = goAppSignUp;
 window.subscribeToPlan = subscribeToPlan;
 window.openBillingPortal = openBillingPortal;
+window.dismissKrogerBulkDoneBanner = dismissKrogerBulkDoneBanner;
 
 void init();

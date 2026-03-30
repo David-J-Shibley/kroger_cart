@@ -92,6 +92,12 @@
                </fieldset>
              </div>
              <div class="meal-plan-row meal-plan-row--full">
+               <label class="meal-checkbox-label meal-checkbox-label--block">
+                 <input type="checkbox" id="mealPlanRecipes" checked title="Include ingredients and steps for each dish">
+                 <span>Include recipes (ingredients + steps for each planned dish)</span>
+               </label>
+             </div>
+             <div class="meal-plan-row meal-plan-row--full">
                <label for="mealPlanNotes">Dietary notes & preferences <span class="optional">(optional)</span></label>
                <textarea id="mealPlanNotes" rows="3" maxlength="800" placeholder="e.g. vegetarian, nut allergy, kid-friendly, low sodium, budget-friendly…"></textarea>
              </div>
@@ -118,6 +124,16 @@
                </div>
              </div>
              <div id="generated-list"></div>
+             <div id="krogerBulkDoneBanner" class="kroger-bulk-done-banner" hidden role="region" aria-label="Kroger cart">
+               <div class="kroger-bulk-done-banner__inner">
+                 <p id="krogerBulkDoneBannerMessage" class="kroger-bulk-done-banner__message"></p>
+                 <div class="kroger-bulk-done-banner__actions">
+                   <button type="button" id="krogerBulkDoneOpenBtn" class="add-bulk-cta">Open Kroger app or website</button>
+                   <button type="button" id="krogerBulkDoneDismissBtn" class="add-bulk-secondary">Dismiss</button>
+                 </div>
+                 <p class="kroger-bulk-done-banner__hint">Opens Kroger in a new tab. On your phone, your cart may open in the Kroger app if it is installed.</p>
+               </div>
+             </div>
            </div>
       </div>
     </main>

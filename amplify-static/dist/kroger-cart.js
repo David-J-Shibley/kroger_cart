@@ -55,6 +55,36 @@ function krogerProxyHeaders(krogerBearerToken) {
   return h;
 }
 
+// client/kroger-app-launch.ts
+var KROGER_SHOPPING_CART_URL = "https://www.kroger.com/shopping/cart";
+var bulkBannerWired = false;
+function wireBulkDoneBannerOnce() {
+  if (bulkBannerWired) return;
+  bulkBannerWired = true;
+  document.getElementById("krogerBulkDoneOpenBtn")?.addEventListener("click", () => {
+    window.open(KROGER_SHOPPING_CART_URL, "_blank", "noopener,noreferrer");
+  });
+  document.getElementById("krogerBulkDoneDismissBtn")?.addEventListener("click", () => {
+    dismissKrogerBulkDoneBanner();
+  });
+}
+function dismissKrogerBulkDoneBanner() {
+  const el = document.getElementById("krogerBulkDoneBanner");
+  if (el) el.hidden = true;
+}
+function showBulkAddKrogerFollowup(added, failed) {
+  if (added <= 0) return;
+  wireBulkDoneBannerOnce();
+  const banner = document.getElementById("krogerBulkDoneBanner");
+  const msg = document.getElementById("krogerBulkDoneBannerMessage");
+  if (!banner || !msg) return;
+  const lines = added === 1 ? "1 line was" : `${added} lines were`;
+  const failPart = failed ? ` ${failed} line${failed === 1 ? "" : "s"} could not be added (see any alerts above).` : "";
+  msg.textContent = `${lines} added to your Kroger cart.${failPart}`;
+  banner.hidden = false;
+  banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
 // client/public-config.ts
 var cached = null;
 var backendOriginCache = null;
@@ -538,8 +568,31 @@ function isSectionHeader(line) {
   const s = (line || "").replace(/\*+$/g, "").trim();
   if (/^(meal\s*plan|grocery\s*list|shopping\s*list|ingredients\s*list)\s*:?\s*$/i.test(s))
     return true;
-  if (/^day\s*\d+\s*$/i.test(s)) return true;
+  if (/^day\s*\d+\s*:?\s*$/i.test(s)) return true;
   if (/^meal\s*plan\s+for\s+/i.test(s)) return true;
+  if (/^recipes\s*:?\s*$/i.test(s)) return true;
+  return false;
+}
+function stripLeadingMarkdownHeading(line) {
+  return (line || "").replace(/^\s*#{1,6}\s*/, "").trim();
+}
+function isStructuralPlanLine(line) {
+  const raw = (line || "").trim();
+  if (!raw) return true;
+  if (/^#{1,6}(\s+\S|\s*$)/.test(raw)) return true;
+  const s = stripLeadingMarkdownHeading(raw);
+  const cleaned = cleanGroceryLine(s.length ? s : raw);
+  if (isSectionHeader(raw) || isSectionHeader(s) || isSectionHeader(cleaned)) return true;
+  if (isMealPlanLine(raw) || isMealPlanLine(s) || isMealPlanLine(cleaned)) return true;
+  if (/^day\s*\d+\s*[—\-–]\s*\S/i.test(cleaned)) return true;
+  if (/^day\s*\d+\s*:\s*\S/i.test(cleaned)) return true;
+  if (/^day\s*\d+\b/i.test(cleaned) && cleaned.length < 48) return true;
+  if (/day[\s\-–]+by[\s\-–]+day/i.test(cleaned)) return true;
+  if (/\boverview\b/i.test(cleaned) && /day|meal|plan/i.test(cleaned)) return true;
+  if (/^recipes?\s*:?\s*$/i.test(cleaned)) return true;
+  if (/^ingredients\s*(\(|:)/i.test(cleaned)) return true;
+  if (/^steps?\s*:?\s*$/i.test(cleaned)) return true;
+  if (/^#{1,6}\s*\S/.test(cleaned)) return true;
   return false;
 }
 function cleanGroceryLine(line) {
@@ -554,11 +607,10 @@ function parseGroceryLines(text) {
   const lines = text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   const result = [];
   let inList = false;
-  const listHeaders = /^(grocery|shopping|ingredients)\s*list\s*:?\s*\**$/i;
-  const looksLikeItem = /^[\-\*•·\d.]+\s*.+$|(\d+\s*(lb|oz|gallon|half-gallon|dozen|eggs?|cans?)\b|,\s*\d+)/i;
+  const listHeaders = /^(grocery|shopping)\s*list\s*:?\s*\**$/i;
   for (const line of lines) {
-    const normalized = (line || "").replace(/\*+$/g, "").trim();
-    if (listHeaders.test(normalized) || /^(grocery|shopping|ingredients)\s*list\s*:?\s*$/i.test(normalized)) {
+    const normalized = (line || "").replace(/^\*+|\*+$/g, "").trim();
+    if (listHeaders.test(normalized) || /^(grocery|shopping)\s*list\s*:?\s*$/i.test(normalized)) {
       inList = true;
       continue;
     }
@@ -566,21 +618,23 @@ function parseGroceryLines(text) {
     if (isMealPlanLine(line)) continue;
     if (inList) {
       const cleaned = cleanGroceryLine(line);
-      if (cleaned.length > 1 && !isSectionHeader(cleaned) && !isMealPlanLine(cleaned)) {
+      if (cleaned.length > 1 && !isStructuralPlanLine(line) && !isStructuralPlanLine(cleaned)) {
         result.push(cleaned);
       }
       continue;
     }
-    if (looksLikeItem.test(line)) {
-      const cleaned = cleanGroceryLine(line);
-      if (cleaned.length > 1 && !isSectionHeader(cleaned) && !isMealPlanLine(cleaned)) {
-        result.push(cleaned);
-      }
-    }
   }
-  const fallback = lines.map((l) => cleanGroceryLine(l)).filter(
-    (l) => l.length > 2 && l.length < 120 && !isSectionHeader(l) && !isMealPlanLine(l)
-  );
+  let fallbackLines = lines;
+  const tailMatch = text.match(/(?:^|\n)\s*(?:grocery|shopping)\s*list\s*:?\s*(?:\n|$)/im);
+  if (tailMatch && typeof tailMatch.index === "number") {
+    const after = text.slice(tailMatch.index + tailMatch[0].length);
+    const tail = after.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    if (tail.length) fallbackLines = tail;
+  }
+  const fallback = fallbackLines.map((l) => cleanGroceryLine(l)).filter((l, i) => {
+    const raw = fallbackLines[i] ?? l;
+    return l.length > 2 && l.length < 120 && !isStructuralPlanLine(raw) && !isStructuralPlanLine(l);
+  });
   return result.length ? result : fallback;
 }
 function shortProductName(name) {
@@ -866,6 +920,7 @@ function defaultMealPlanPrefs() {
     includeBreakfast: true,
     includeLunch: true,
     includeDinner: true,
+    includeRecipes: true,
     notes: ""
   };
 }
@@ -898,6 +953,7 @@ function parseStoredMealPrefs(raw) {
       includeBreakfast,
       includeLunch,
       includeDinner,
+      includeRecipes: typeof o.includeRecipes === "boolean" ? o.includeRecipes : d.includeRecipes,
       notes: typeof o.notes === "string" ? o.notes.slice(0, 800) : ""
     };
   } catch {
@@ -931,15 +987,31 @@ ${notes}
   const peopleWord = people === 1 ? "1 person" : `${people} people`;
   const listMin = Math.min(50, Math.max(15, 18 + people * 2 + Math.floor(days / 2)));
   const listMax = Math.min(80, Math.max(listMin + 5, 28 + people * 3 + days));
-  return `Create a meal plan for ${dayWord} for a household of ${peopleWord}. ${scopeLine} Keep the meal plan brief.${notesBlock}
+  const recipeBlock = prefs.includeRecipes ? `
 
-Then provide ONE consolidated grocery list for the entire period. Rules for the grocery list:
+After the day-by-day overview, add a section that starts on its own line with exactly: Recipes:
+Under Recipes, for every dish you listed (each breakfast, lunch, and dinner across all days), include a small block:
+- A line with the day, meal type, and dish name (e.g. "Day 2 \u2014 Lunch: Turkey sandwich").
+- A line "Ingredients (for ${peopleWord} for this dish):" then a short bullet list with amounts for that dish only.
+- A line "Steps:" then 3\u20136 numbered, concise steps (practical, not essay-length).
+
+Do not put recipe ingredient bullets under any heading named "Grocery list" or "Shopping list"\u2014those headings are reserved for the consolidated list below.` : `
+
+Keep the day-by-day plan brief: short dish names only\u2014no per-dish ingredient lists or cooking steps in the plan section.`;
+  const groceryRules = `Then provide ONE consolidated grocery list for the entire period. Rules for the grocery list:
 - Scale all quantities for ${peopleWord} across every meal in the plan.
 - List each ingredient exactly ONCE. Add up all amounts needed across every recipe and write a single line per ingredient (e.g. "chicken breast, 4 lb" not separate lines for partial amounts).
 - Use sensible units: milk and juice in gallons or half-gallons; eggs by count (e.g. "18 eggs"); meat and deli in lb; butter in lb or sticks; flour, sugar, rice in lb; produce in lb or count as appropriate (e.g. "3 onions", "2 lb carrots"); canned goods by count (e.g. "2 (15 oz) cans black beans"). Never use "lb" for liquids like milk.
-- Keep the list concise: about ${listMin}\u2013${listMax} line items total (adjust for household size). No duplicate ingredients. No lengthy recipes\u2014just the meal plan and the grocery list.
-- Put the grocery list under a clear heading on its own line: "Grocery list:" or "Shopping list:" followed by one item per line.
-- Be concise: short meal names and list items only.`;
+- Keep the list concise: about ${listMin}\u2013${listMax} line items total (adjust for household size). No duplicate ingredients.
+- Put the consolidated list ONLY under a line that reads exactly "Grocery list:" or "Shopping list:" (then one shopping item per line, bullet or plain). Nothing before that line belongs in the store list.`;
+  const tailNote = prefs.includeRecipes ? `- After Recipes, output the consolidated grocery list as specified.` : `- Be concise: short meal names and list items only.`;
+  return `Create a meal plan for ${dayWord} for a household of ${peopleWord}. ${scopeLine} Start with a clear day-by-day overview (each day: the meals you are including, with specific dish names).${notesBlock}${recipeBlock}
+
+${groceryRules}
+${tailNote}`;
+}
+function mealPlanNumPredict(prefs) {
+  return prefs.includeRecipes ? 8192 : 2048;
 }
 function readMealPlanPrefsFromForm() {
   const peopleEl = document.getElementById("mealPlanPeople");
@@ -947,6 +1019,7 @@ function readMealPlanPrefsFromForm() {
   const bEl = document.getElementById("mealPlanBreakfast");
   const lEl = document.getElementById("mealPlanLunch");
   const dEl = document.getElementById("mealPlanDinner");
+  const recipesEl = document.getElementById("mealPlanRecipes");
   const notesEl = document.getElementById("mealPlanNotes");
   let includeBreakfast = Boolean(bEl?.checked);
   let includeLunch = Boolean(lEl?.checked);
@@ -965,6 +1038,7 @@ function readMealPlanPrefsFromForm() {
     includeBreakfast,
     includeLunch,
     includeDinner,
+    includeRecipes: recipesEl ? recipesEl.checked : true,
     notes: (notesEl?.value ?? "").slice(0, 800)
   };
 }
@@ -980,6 +1054,8 @@ function applyMealPlanPrefsToForm(prefs) {
   if (bEl) bEl.checked = prefs.includeBreakfast;
   if (lEl) lEl.checked = prefs.includeLunch;
   if (dEl) dEl.checked = prefs.includeDinner;
+  const recipesEl = document.getElementById("mealPlanRecipes");
+  if (recipesEl) recipesEl.checked = prefs.includeRecipes;
   if (notesEl) notesEl.value = prefs.notes.slice(0, 800);
 }
 function persistMealPlanPrefs(prefs) {
@@ -996,6 +1072,7 @@ function initMealPlanForm() {
     "mealPlanBreakfast",
     "mealPlanLunch",
     "mealPlanDinner",
+    "mealPlanRecipes",
     "mealPlanNotes"
   ];
   const onChange = () => persistMealPlanPrefs(readMealPlanPrefsFromForm());
@@ -1275,9 +1352,12 @@ async function addAllGroceryToCart() {
   setBulkCartButtonsDisabled(true);
   try {
     const { added, failed } = await bulkAddGroceryLines(lines);
-    alert(
-      "Finished: " + added + " line(s) added to cart." + (failed ? " " + failed + " line(s) were not added (see earlier messages)." : "")
-    );
+    if (failed) {
+      alert(
+        "Finished: " + added + " line(s) added to cart. " + failed + " line(s) were not added (see earlier messages)."
+      );
+    }
+    showBulkAddKrogerFollowup(added, failed);
   } finally {
     setBulkCartButtonsDisabled(false);
     syncAddAllToCartToolbar();
@@ -1298,9 +1378,12 @@ async function addSelectedGroceryToCart() {
   setBulkCartButtonsDisabled(true);
   try {
     const { added, failed } = await bulkAddGroceryLines(lines);
-    alert(
-      "Finished: " + added + " selected line(s) added to cart." + (failed ? " " + failed + " line(s) were not added (see earlier messages)." : "")
-    );
+    if (failed) {
+      alert(
+        "Finished: " + added + " selected line(s) added to cart. " + failed + " line(s) were not added (see earlier messages)."
+      );
+    }
+    showBulkAddKrogerFollowup(added, failed);
   } finally {
     setBulkCartButtonsDisabled(false);
     syncAddAllToCartToolbar();
@@ -1350,7 +1433,7 @@ async function generateGroceryList() {
           model: ollamaModel,
           messages: [{ role: "user", content: prompt }],
           stream: true,
-          options: { num_predict: 2048 }
+          options: { num_predict: mealPlanNumPredict(prefs) }
         }),
         signal: controller.signal
       })
@@ -1616,4 +1699,5 @@ window.goAppSignIn = goAppSignIn;
 window.goAppSignUp = goAppSignUp;
 window.subscribeToPlan = subscribeToPlan;
 window.openBillingPortal = openBillingPortal;
+window.dismissKrogerBulkDoneBanner = dismissKrogerBulkDoneBanner;
 void init();

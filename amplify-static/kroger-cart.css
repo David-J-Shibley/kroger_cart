@@ -445,6 +445,79 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-
   border: 1px solid rgba(205, 211, 222, 0.95);
 }
 
+.card--auto-cart {
+  border-color: rgba(19, 27, 56, 0.1);
+  background:
+    linear-gradient(165deg, rgba(254, 108, 85, 0.04) 0%, transparent 40%),
+    linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+}
+
+.auto-cart-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auto-cart-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.auto-cart-toggle input {
+  margin-top: 3px;
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--color-emerald);
+  flex-shrink: 0;
+}
+
+.auto-cart-strategy-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auto-cart-strategy-row label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.auto-cart-strategy-row select {
+  max-width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.auto-cart-strategy-row select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.auto-cart-strategy-row select:focus {
+  outline: none;
+  border-color: var(--color-teal);
+  box-shadow: var(--focus-ring);
+}
+
+.auto-cart-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 .card--feedback {
   position: relative;
   overflow: hidden;
@@ -664,17 +737,57 @@ body.feedback-page .main-content {
   color: var(--app-primary);
 }
 
-#cart {
-  margin-top: 16px;
-  padding: 14px;
-  background: #fff;
+.cart-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 1100;
+  max-width: min(440px, calc(100vw - 28px));
+  padding: 14px 18px;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
-  font-size: 0.9375rem;
-  min-height: 44px;
+  background: linear-gradient(155deg, #e8fcf3 0%, #d2f2e6 100%);
+  border: 1px solid rgba(28, 203, 126, 0.5);
+  box-shadow: var(--shadow-md);
+  color: var(--app-primary);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(-50%, 120%, 0);
+  transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
-#cart:empty::before { content: "Your cart is empty"; color: var(--text-muted); }
+.cart-toast--visible {
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0);
+}
+
+.cart-toast--out {
+  opacity: 0;
+  transform: translate3d(-50%, 48px, 0);
+}
+
+.cart-toast[hidden] {
+  display: none !important;
+}
+
+.cart-toast__main {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.cart-toast__detail {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.cart-toast__detail[hidden] {
+  display: none !important;
+}
 
 .section {
   margin-top: 8px;
@@ -808,6 +921,12 @@ body.feedback-page .main-content {
 .meal-checkbox-label input:focus-visible {
   outline: 2px solid var(--color-teal);
   outline-offset: 2px;
+}
+
+.meal-checkbox-label--block {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .meal-plan-row input[type="number"],
@@ -957,6 +1076,48 @@ body.feedback-page .main-content {
 
 .add-to-cart-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
 .add-to-cart-section .add-to-cart-heading { margin: 0 0 12px 0; font-size: 1.125rem; font-weight: 600; color: var(--accent-warm); }
+
+.kroger-bulk-done-banner {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(28, 203, 126, 0.45);
+  background: linear-gradient(135deg, rgba(28, 203, 126, 0.12) 0%, rgba(13, 242, 254, 0.08) 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55) inset;
+}
+
+.kroger-bulk-done-banner__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kroger-bulk-done-banner__message {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.kroger-bulk-done-banner__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.section .kroger-bulk-done-banner .add-bulk-cta,
+.section .kroger-bulk-done-banner .add-bulk-secondary {
+  margin: 0;
+}
+
+.kroger-bulk-done-banner__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
 .add-all-cart-toolbar {
   margin-bottom: 14px;
   padding: 12px 14px;
@@ -965,6 +1126,7 @@ body.feedback-page .main-content {
   border: 1px solid var(--border);
 }
 
+/* Toolbar lives inside .section — reset .section button so links are not green CTAs */
 .section .add-all-cart-toolbar button {
   margin: 0;
   transform: none;
@@ -1369,16 +1531,25 @@ body.landing-page {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.landing-main .landing-btn--ghost {
+/* Light sections use id="landing-main" — not class landing-main */
+#landing-main .landing-btn--ghost {
   background: #fff;
   color: var(--app-primary);
-  border: 1px solid rgba(19, 27, 56, 0.22);
+  border: 1.5px solid rgba(19, 27, 56, 0.32);
+  box-shadow: 0 1px 3px rgba(19, 27, 56, 0.08);
 }
 
-.landing-main .landing-btn--ghost:hover {
+#landing-main .landing-btn--ghost:hover {
   background: var(--app-primary-light);
   border-color: var(--app-primary);
   color: var(--app-primary);
+  box-shadow: 0 2px 8px rgba(19, 27, 56, 0.1);
+}
+
+#landing-main .landing-btn--ghost:focus-visible {
+  outline: none;
+  border-color: var(--color-teal);
+  box-shadow: var(--focus-ring);
 }
 
 .landing-btn--outline {
@@ -1391,16 +1562,23 @@ body.landing-page {
   background: rgba(255, 255, 255, 0.14);
 }
 
-.landing-main .landing-btn--outline {
+#landing-main .landing-btn--outline {
   background: #fff;
   color: var(--app-primary);
-  border: 1px solid var(--border);
+  border: 1.5px solid rgba(19, 27, 56, 0.28);
+  box-shadow: 0 1px 3px rgba(19, 27, 56, 0.06);
 }
 
-.landing-main .landing-btn--outline:hover {
-  background: var(--app-primary-light);
-  border-color: rgba(13, 242, 254, 0.45);
+#landing-main .landing-btn--outline:hover {
+  background: rgba(13, 242, 254, 0.1);
+  border-color: rgba(13, 242, 254, 0.65);
   color: var(--app-primary);
+}
+
+#landing-main .landing-btn--outline:focus-visible {
+  outline: none;
+  border-color: var(--color-teal);
+  box-shadow: var(--focus-ring);
 }
 
 .landing-btn--cta {
@@ -1416,6 +1594,13 @@ body.landing-page {
   background: linear-gradient(155deg, #4df0a5 0%, #22d685 45%, var(--cta-hover) 100%);
   color: #fff;
   box-shadow: 0 4px 16px rgba(22, 134, 90, 0.35);
+}
+
+#landing-main .landing-btn--cta:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--focus-ring),
+    0 2px 12px rgba(28, 203, 126, 0.35);
 }
 
 .landing-btn--large {
@@ -1550,9 +1735,10 @@ body.landing-page {
   padding: 28px 20px;
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(28, 203, 126, 0.1) 0%, rgba(13, 242, 254, 0.1) 100%);
-  border: 1px solid rgba(19, 27, 56, 0.1);
-  box-shadow: var(--shadow);
+    linear-gradient(135deg, rgba(28, 203, 126, 0.12) 0%, rgba(13, 242, 254, 0.14) 100%);
+  border: 1px solid rgba(19, 27, 56, 0.12);
+  border-left: 3px solid var(--color-teal);
+  box-shadow: var(--shadow), 0 1px 0 rgba(255, 255, 255, 0.65) inset;
 }
 
 .landing-bottom-cta__title {

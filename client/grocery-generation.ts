@@ -12,11 +12,13 @@ import {
 import { escapeHtml, parseGroceryLines } from "./html-utils.js";
 import {
   buildMealPlanPrompt,
+  mealPlanNumPredict,
   persistMealPlanPrefs,
   readMealPlanPrefsFromForm,
 } from "./meal-plan.js";
 import type { OllamaMessage } from "./types.js";
 import { EXAMPLE_MEAL_PLAN_TEXT } from "./example-meal-plan.js";
+import { showBulkAddKrogerFollowup } from "./kroger-app-launch.js";
 import { searchAndAddToCart } from "./add-to-cart.js";
 import { getAutoAddEnabled } from "./auto-cart-prefs.js";
 import { syncAddAllToCartToolbar } from "./auto-cart-ui.js";
@@ -193,12 +195,16 @@ export async function addAllGroceryToCart(): Promise<void> {
   setBulkCartButtonsDisabled(true);
   try {
     const { added, failed } = await bulkAddGroceryLines(lines);
-    alert(
-      "Finished: " +
-        added +
-        " line(s) added to cart." +
-        (failed ? " " + failed + " line(s) were not added (see earlier messages)." : "")
-    );
+    if (failed) {
+      alert(
+        "Finished: " +
+          added +
+          " line(s) added to cart. " +
+          failed +
+          " line(s) were not added (see earlier messages)."
+      );
+    }
+    showBulkAddKrogerFollowup(added, failed);
   } finally {
     setBulkCartButtonsDisabled(false);
     syncAddAllToCartToolbar();
@@ -221,12 +227,16 @@ export async function addSelectedGroceryToCart(): Promise<void> {
   setBulkCartButtonsDisabled(true);
   try {
     const { added, failed } = await bulkAddGroceryLines(lines);
-    alert(
-      "Finished: " +
-        added +
-        " selected line(s) added to cart." +
-        (failed ? " " + failed + " line(s) were not added (see earlier messages)." : "")
-    );
+    if (failed) {
+      alert(
+        "Finished: " +
+          added +
+          " selected line(s) added to cart. " +
+          failed +
+          " line(s) were not added (see earlier messages)."
+      );
+    }
+    showBulkAddKrogerFollowup(added, failed);
   } finally {
     setBulkCartButtonsDisabled(false);
     syncAddAllToCartToolbar();
@@ -280,7 +290,7 @@ export async function generateGroceryList(): Promise<void> {
           model: ollamaModel,
           messages: [{ role: "user", content: prompt }],
           stream: true,
-          options: { num_predict: 2048 },
+          options: { num_predict: mealPlanNumPredict(prefs) },
         }),
         signal: controller.signal,
       })
