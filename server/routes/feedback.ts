@@ -22,7 +22,8 @@ function getFeedbackDb(): { client: DynamoDBDocumentClient; table: string } | nu
 }
 
 function sanitizeText(s: string, max: number): string {
-  return s.replace(/\0/g, "").trim().slice(0, max);
+  const stripped = s.replace(/\0/g, "").replace(/<[^>]*>/g, "").trim();
+  return stripped.slice(0, max);
 }
 
 /**

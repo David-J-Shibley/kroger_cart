@@ -1,10 +1,12 @@
 import "dotenv/config";
 import express, { type Request } from "express";
+import helmet from "helmet";
 import path from "path";
 import { fileURLToPath } from "url";
 import { cognitoHostedUiDomainIssue, config, getKrogerCredentials } from "./config.js";
 import { logger } from "./logger.js";
 import { cognitoAuthMiddleware } from "./middleware/cognitoAuth.js";
+import { llmDailyCapMiddleware } from "./middleware/llmDailyCap.js";
 import { subscriptionGuardMiddleware } from "./middleware/subscriptionGuard.js";
 import {
   authExchangeLimiter,
@@ -15,12 +17,16 @@ import {
 } from "./middleware/rateLimits.js";
 import { llmProxyRouter } from "./proxies/llmProxy.js";
 import { krogerProxyMiddleware } from "./proxies/kroger.js";
-import { publicConfigHandler } from "./routes/publicConfig.js";
 import { stripeWebhookHandler } from "./routes/stripeWebhook.js";
 import { deleteAppSessionHandler } from "./routes/appSession.js";
 import { deleteKrogerSessionHandler } from "./routes/krogerSessionRoute.js";
 import { postCognitoToken } from "./routes/cognitoToken.js";
-import { getAdminFeedback, getAdminStatus, getAdminUsers } from "./routes/admin.js";
+import {
+  getAdminFeedback,
+  getAdminLlmMonitoring,
+  getAdminStatus,
+  getAdminUsers,
+} from "./routes/admin.js";
 import { getMe } from "./routes/me.js";
 import {
   postBillingPortal,
@@ -35,16 +41,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
 
-/** Client-credentials token only — no user session. OAuth exchange/refresh require Cognito (Bearer or cookie). */
-function isKrogerServerCredentialPost(req: Request): boolean {
-  if (req.method !== "POST") return false;
-  const pathname = (req.originalUrl ?? "").split("?")[0].replace(/\/+$/, "") || "";
-  return pathname === "/kroger-api/token";
-}
-
 export function createApp(): express.Express {
   const app = express();
-  app.set("trust proxy", 1);
+  app.set("trust proxy", config.trustProxy);
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    })
+  );
 
   app.use(browserCorsMiddleware);
 
@@ -69,7 +76,6 @@ export function createApp(): express.Express {
     stripeWebhookHandler
   );
 
-  app.get("/api/public-config", publicConfigHandler);
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true, version: "1.0.0" });
   });
@@ -89,6 +95,7 @@ export function createApp(): express.Express {
   api.get("/me", getMe);
   api.delete("/kroger-session", deleteKrogerSessionHandler);
   api.get("/admin/status", getAdminStatus);
+  api.get("/admin/llm-monitoring", getAdminLlmMonitoring);
   api.get("/admin/feedback", getAdminFeedback);
   api.get("/admin/users", getAdminUsers);
   api.post("/billing/checkout-session", postCheckoutSession);
@@ -100,6 +107,7 @@ export function createApp(): express.Express {
     "/ollama-api",
     cognitoAuthMiddleware,
     subscriptionGuardMiddleware,
+    llmDailyCapMiddleware,
     ollamaLimiter,
     llmProxyRouter
   );
@@ -107,13 +115,6 @@ export function createApp(): express.Express {
   app.use(
     "/kroger-api",
     proxyLimiter,
-    (req, res, next) => {
-      if (isKrogerServerCredentialPost(req)) {
-        void krogerProxyMiddleware(req, res, next);
-        return;
-      }
-      next();
-    },
     cognitoAuthMiddleware,
     subscriptionGuardMiddleware,
     (req, res, next) => {
@@ -150,6 +151,13 @@ export function logStartupWarnings(): void {
     if (!config.cognitoDomain || !config.cognitoClientSecret) {
       logger.warn("AUTH_REQUIRED but COGNITO_DOMAIN / COGNITO_CLIENT_SECRET incomplete — login flow may fail.");
     }
+    const cr = config.cognitoAuthCallbackUrl.trim().replace(/\/+$/, "");
+    if (cr) {
+      logger.info(
+        { cognitoRedirectUri: cr },
+        "Cognito Hosted UI: allow this exact URL under App client → Hosted UI → Allowed callback URLs (must match deploy-config.json cognitoRedirectUri when using split static/API hosting)."
+      );
+    }
   }
   const domainIssue = cognitoHostedUiDomainIssue(config.cognitoDomain);
   if (config.cognitoDomain && domainIssue) {
@@ -179,8 +187,10 @@ export function logStartupWarnings(): void {
   }
   logger.info(
     {
+      trustProxy: config.trustProxy,
       llm: config.llmProvider,
       model: config.llmModel,
+      llmDailyCapPerUser: config.llmDailyCapPerUser,
       ...(config.llmProvider === "ollama"
         ? { ollamaOrigin: config.ollamaOrigin }
         : { featherlessApiBase: config.featherlessApiBase }),

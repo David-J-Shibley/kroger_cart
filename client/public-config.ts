@@ -1,4 +1,4 @@
-/** Public deployment settings from the server (no secrets). Loaded once at startup. */
+/** Public deployment settings from static `deploy-config.json` (same origin as the HTML). No /api/public-config. */
 
 export interface PublicConfig {
   krogerClientId: string;
@@ -17,69 +17,67 @@ export interface PublicConfig {
   /** When true, main page does not force redirect to login; header Sign in / Create account instead. */
   authAllowAnonymousBrowsing: boolean;
   subscriptionRequired: boolean;
-  /** Server stores Cognito tokens in Dynamo + HttpOnly cookie — use credentials on API fetches. */
+  /** Must match server cookie session mode (COOKIE_APP_SESSION + Dynamo + secret). */
   cookieSessionAuth: boolean;
-  /** Server set TEST=true — enables optional testing controls in the UI. */
+  /** Server set TEST=true in env — mirror here for dev UI if you want test controls. */
   testMode: boolean;
 }
 
 let cached: PublicConfig | null = null;
 
-/** Origin of the Express API (proxies, /api, /kroger-api, /ollama-api). Filled after initBackendOrigin(). */
+/** Origin of the Express API (proxies, /api, /kroger-api, /ollama-api). Filled after loadDeployConfig(). */
 let backendOriginCache: string | null = null;
 
-/**
- * When the UI is on static hosting (e.g. Amplify) and the API is elsewhere, deploy-config.json
- * provides { "apiOrigin": "https://api.example.com" }. Otherwise the page origin is used.
- */
-export async function initBackendOrigin(): Promise<string> {
-  if (backendOriginCache !== null) return backendOriginCache;
-  if (typeof window === "undefined") {
-    backendOriginCache = "";
-    return "";
-  }
+/** Keys we must not keep in the browser when the server uses HttpOnly cookie sessions. */
+const LEGACY_BROWSER_SECRET_KEYS = [
+  "appCognitoAccessToken",
+  "appCognitoRefreshToken",
+  "appCognitoIdToken",
+  "krogerUserToken",
+  "krogerUserTokenExpiry",
+  "krogerUserRefreshToken",
+] as const;
+
+function clearLegacyBrowserSecretsIfCookieSession(cookieSessionAuth: boolean): void {
+  if (!cookieSessionAuth || typeof window === "undefined") return;
   try {
-    const r = await fetch("/deploy-config.json", { cache: "no-store" });
-    if (r.ok) {
-      const j = (await r.json()) as { apiOrigin?: string };
-      const o = j.apiOrigin?.trim().replace(/\/$/, "");
-      if (o && /^https?:\/\//i.test(o)) {
-        backendOriginCache = o;
-        return o;
-      }
+    for (const k of LEGACY_BROWSER_SECRET_KEYS) {
+      localStorage.removeItem(k);
     }
   } catch {
-    /* use page origin */
+    /* storage blocked */
   }
-  backendOriginCache = window.location.origin;
-  return backendOriginCache;
 }
 
-export function getBackendOrigin(): string {
-  if (backendOriginCache !== null) return backendOriginCache;
+function pageOrigin(): string {
   return typeof window !== "undefined" ? window.location.origin : "";
 }
 
-/** Absolute URL for API/proxy paths (e.g. "/api/me" → https://api…/api/me). */
-export function apiUrl(path: string): string {
-  const b = getBackendOrigin();
-  const p = path.startsWith("/") ? path : "/" + path;
-  return b + p;
-}
-
-export async function ensurePublicConfig(): Promise<PublicConfig> {
+/**
+ * Loads `/deploy-config.json` from the **page** origin (static site), not the API host.
+ * `apiOrigin` in that file points at the Express API when UI and API are split.
+ */
+export async function loadDeployConfig(): Promise<PublicConfig> {
   if (cached) return cached;
-  await initBackendOrigin();
-  const res = await fetch(apiUrl("/api/public-config"));
+  const origin = pageOrigin();
+  const res = await fetch(`${origin}/deploy-config.json`, { cache: "no-store" });
   if (!res.ok) {
-    throw new Error("Failed to load app configuration (HTTP " + res.status + ")");
+    throw new Error(
+      "Missing or invalid deploy-config.json (HTTP " +
+        res.status +
+        "). Copy deploy-config.sample.json to deploy-config.json and fill in values."
+    );
   }
   const raw = (await res.json()) as Record<string, unknown>;
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const apiRaw = typeof raw.apiOrigin === "string" ? raw.apiOrigin.trim().replace(/\/$/, "") : "";
+  backendOriginCache =
+    apiRaw && /^https?:\/\//i.test(apiRaw) ? apiRaw : origin || "";
+
   const llmModel = String(raw.llmModel ?? raw.ollamaModel ?? "qwen3:8b").trim();
   const prov = String(raw.llmProvider ?? "").toLowerCase();
   const llmProvider: "ollama" | "featherless" =
     prov === "featherless" ? "featherless" : "ollama";
+  const cookieSessionAuth = Boolean(raw.cookieSessionAuth);
   cached = {
     krogerClientId: String(raw.krogerClientId ?? ""),
     krogerRedirectUri: String(raw.krogerRedirectUri ?? ""),
@@ -95,21 +93,45 @@ export async function ensurePublicConfig(): Promise<PublicConfig> {
     authRequired: Boolean(raw.authRequired),
     authAllowAnonymousBrowsing: Boolean(raw.authAllowAnonymousBrowsing),
     subscriptionRequired: Boolean(raw.subscriptionRequired),
-    cookieSessionAuth: Boolean(raw.cookieSessionAuth),
+    cookieSessionAuth,
     testMode: Boolean(raw.testMode),
   };
+  clearLegacyBrowserSecretsIfCookieSession(cookieSessionAuth);
   return cached;
+}
+
+/** @deprecated Use loadDeployConfig — name kept for call sites. */
+export async function ensurePublicConfig(): Promise<PublicConfig> {
+  return loadDeployConfig();
+}
+
+/** @deprecated Use loadDeployConfig — init order is now inside loadDeployConfig. */
+export async function initBackendOrigin(): Promise<string> {
+  await loadDeployConfig();
+  return getBackendOrigin();
 }
 
 export function getPublicConfig(): PublicConfig {
   if (!cached) {
-    throw new Error("App configuration not loaded yet");
+    throw new Error("App configuration not loaded yet — call loadDeployConfig() first");
   }
   return cached;
 }
 
 export function tryGetPublicConfig(): PublicConfig | null {
   return cached;
+}
+
+export function getBackendOrigin(): string {
+  if (backendOriginCache !== null) return backendOriginCache;
+  return typeof window !== "undefined" ? window.location.origin : "";
+}
+
+/** Absolute URL for API/proxy paths (e.g. "/api/me" → https://api…/api/me). */
+export function apiUrl(path: string): string {
+  const b = getBackendOrigin();
+  const p = path.startsWith("/") ? path : "/" + path;
+  return b + p;
 }
 
 export function getKrogerLocationId(): string {

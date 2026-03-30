@@ -19,6 +19,7 @@ const copyFromRoot = [
   "feedback.html",
   "admin.html",
   "robots.txt",
+  "deploy-config.json",
 ];
 
 await fs.mkdir(www, { recursive: true });

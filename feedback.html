@@ -70,7 +70,7 @@
       try {
         var base = await window.krogerCartApiBase();
         try {
-          var pcr = await fetch(base + "/api/public-config");
+          var pcr = await fetch(window.location.origin + "/deploy-config.json", { cache: "no-store" });
           if (pcr.ok) {
             var pcj = await pcr.json();
             feedbackCookieSessionAuth = !!pcj.cookieSessionAuth;

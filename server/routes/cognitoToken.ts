@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
+import { resolveCognitoRedirectUri } from "../cognitoRedirect.js";
 import { cognitoHostedUiDomainIssue, config } from "../config.js";
 import { logger } from "../logger.js";
+import { safeClientError } from "../safeError.js";
 import { buildAppSessionSetCookie } from "./appSession.js";
 import { createServerAppSession } from "../session/resolveContext.js";
 
@@ -20,6 +22,19 @@ export async function postCognitoToken(req: Request, res: Response): Promise<voi
   const redirectUri = typeof req.body?.redirectUri === "string" ? req.body.redirectUri : "";
   if (!code || !redirectUri) {
     res.status(400).json({ error: "Missing code or redirectUri" });
+    return;
+  }
+
+  const norm = (u: string) => u.trim().replace(/\/+$/, "");
+  const allowedRedirect = norm(resolveCognitoRedirectUri(req));
+  const submittedRedirect = norm(redirectUri);
+  if (submittedRedirect !== allowedRedirect) {
+    logger.warn({ submittedRedirect, allowedRedirect }, "Cognito token exchange redirect_uri mismatch");
+    res.status(400).json({
+      error: "redirect_uri_mismatch",
+      error_description:
+        "redirectUri must exactly match the configured Cognito callback URL (COGNITO_AUTH_CALLBACK_URL or derived app URL).",
+    });
     return;
   }
 
@@ -74,6 +89,6 @@ export async function postCognitoToken(req: Request, res: Response): Promise<voi
     res.json(json);
   } catch (e) {
     logger.error({ err: e }, "Cognito token fetch failed");
-    res.status(502).json({ error: e instanceof Error ? e.message : "Token exchange failed" });
+    res.status(502).json(safeClientError(e, "Token exchange failed"));
   }
 }

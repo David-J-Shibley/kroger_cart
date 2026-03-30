@@ -74,13 +74,22 @@ const llmModelResolved =
   envStr("FEATHERLESS_MODEL") ||
   (llmProviderResolved === "featherless" ? "Qwen/Qwen2.5-7B-Instruct" : "qwen3:8b");
 
+/** Trust `X-Forwarded-For` / `req.ip` behind reverse proxies. `1` = one hop (typical ALB). `true` = all hops. */
+function resolveTrustProxy(): boolean | number {
+  const v = envStr("TRUST_PROXY", "1").trim().toLowerCase();
+  if (v === "true" || v === "yes") return true;
+  const n = parseInt(v, 10);
+  if (Number.isFinite(n) && n >= 0) return n;
+  return 1;
+}
+
 export const config = {
   port: parseInt(process.env.PORT || "8000", 10),
   host: process.env.HOST || "0.0.0.0",
   ollamaOrigin: process.env.OLLAMA_ORIGIN || "http://127.0.0.1:11434",
   ollamaProxyTimeoutMs: parseInt(process.env.OLLAMA_PROXY_TIMEOUT_MS || "600000", 10),
 
-  /** Server-side only — never exposed in public-config. */
+  /** Server-side only — not in browser deploy-config. */
   featherlessApiKey,
   /** Base URL without trailing slash, e.g. https://api.featherless.ai/v1 */
   featherlessApiBase: envStr("FEATHERLESS_API_BASE", "https://api.featherless.ai/v1").replace(
@@ -152,8 +161,15 @@ export const config = {
    */
   browserCorsOrigins: envStr("BROWSER_CORS_ORIGINS"),
 
-  /** When true, public-config exposes testMode so the client can show dev-only UI (e.g. load example). */
+  /** Client reads testMode from static deploy-config.json. */
   testMode: envBool("TEST", false),
+
+  /** Max LLM chat requests per Cognito user per UTC day (0 = unlimited). */
+  llmDailyCapPerUser: Math.max(0, parseInt(process.env.LLM_DAILY_CAP_PER_USER || "200", 10) || 0),
+  /** express.json limit for POST /ollama-api/api/chat */
+  llmChatJsonLimit: envStr("LLM_CHAT_JSON_LIMIT", "256kb"),
+
+  trustProxy: resolveTrustProxy(),
 
   logLevel: envStr("LOG_LEVEL", "info"),
 };

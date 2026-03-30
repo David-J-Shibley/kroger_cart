@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { safeClientError } from "../safeError.js";
 
 type OllamaStyleBody = {
   model?: string;
@@ -135,14 +136,16 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
     res.write(JSON.stringify({ model, done: true }) + "\n");
     res.end();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.warn({ err: message }, "Featherless fetch failed");
+    logger.warn({ err: err instanceof Error ? err.message : err }, "Featherless fetch failed");
     if (!res.headersSent) {
-      res.status(502).json({
-        error:
-          message +
-          " Check FEATHERLESS_API_KEY, FEATHERLESS_API_BASE, and LLM_MODEL (see https://featherless.ai/docs/overview).",
-      });
+      res
+        .status(502)
+        .json(
+          safeClientError(
+            err,
+            "Meal generation is temporarily unavailable. Please try again later."
+          )
+        );
     }
   }
 }

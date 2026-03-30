@@ -20,6 +20,11 @@ export interface UserRecord {
   stripeCustomerId?: string;
   subscriptionStatus: SubscriptionStatus;
   updatedAt: string;
+  /** Set in DynamoDB only — grants /api/admin/* and admin UI API. */
+  isAdmin?: boolean;
+  /** UTC date `YYYY-MM-DD` for LLM daily cap accounting. */
+  llmUsageDay?: string;
+  llmUsageCount?: number;
 }
 
 let docClient: DynamoDBDocumentClient | null = null;

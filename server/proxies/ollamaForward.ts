@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { isProduction } from "../safeError.js";
 
 const OLLAMA_ORIGIN = config.ollamaOrigin;
 
@@ -65,7 +66,11 @@ export async function proxyOllamaRequest(
       : "";
     logger.warn({ err: message, url }, "Ollama proxy error");
     if (!res.headersSent) {
-      res.status(502).json({ error: message + hint });
+      const detail = isProduction ? "" : message + hint;
+      res.status(502).json({
+        error: "The meal generation service is temporarily unavailable.",
+        ...(detail ? { error_description: detail } : {}),
+      });
     }
   }
 }

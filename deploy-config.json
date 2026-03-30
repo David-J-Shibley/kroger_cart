@@ -1,0 +1,16 @@
+{
+  "apiOrigin": "",
+  "krogerClientId": "",
+  "krogerRedirectUri": "",
+  "krogerLocationId": "",
+  "llmProvider": "ollama",
+  "llmModel": "qwen3:8b",
+  "cognitoDomain": "",
+  "cognitoClientId": "",
+  "cognitoRedirectUri": "",
+  "authRequired": false,
+  "authAllowAnonymousBrowsing": false,
+  "subscriptionRequired": false,
+  "cookieSessionAuth": false,
+  "testMode": false
+}

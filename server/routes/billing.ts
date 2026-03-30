@@ -7,6 +7,7 @@ import {
   type SubscriptionStatus,
 } from "../db/users.js";
 import { logger } from "../logger.js";
+import { safeClientError } from "../safeError.js";
 
 const stripe = config.stripeSecretKey ? new Stripe(config.stripeSecretKey) : null;
 
@@ -45,7 +46,7 @@ export async function postCheckoutSession(req: Request, res: Response): Promise<
     res.json({ url: session.url });
   } catch (e) {
     logger.error({ err: e }, "Stripe checkout.session.create failed");
-    res.status(502).json({ error: e instanceof Error ? e.message : "Stripe error" });
+    res.status(502).json(safeClientError(e, "Could not start checkout. Please try again later."));
   }
 }
 
@@ -107,7 +108,7 @@ export async function postSyncCheckoutSession(req: Request, res: Response): Prom
     res.json({ ok: true, subscriptionStatus: rec?.subscriptionStatus ?? status });
   } catch (e) {
     logger.error({ err: e, sessionId }, "sync checkout session failed");
-    res.status(502).json({ error: e instanceof Error ? e.message : "Stripe error" });
+    res.status(502).json(safeClientError(e, "Could not confirm checkout. Please try again later."));
   }
 }
 
@@ -139,6 +140,6 @@ export async function postBillingPortal(req: Request, res: Response): Promise<vo
     res.json({ url: session.url });
   } catch (e) {
     logger.error({ err: e }, "Stripe billingPortal.sessions.create failed");
-    res.status(502).json({ error: e instanceof Error ? e.message : "Stripe error" });
+    res.status(502).json(safeClientError(e, "Could not open billing portal. Please try again later."));
   }
 }

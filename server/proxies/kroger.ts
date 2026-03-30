@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { config, getKrogerCredentials } from "../config.js";
 import { logger } from "../logger.js";
+import { safeClientError } from "../safeError.js";
 import {
   mergeKrogerOAuthIntoCookieSession,
   resolveKrogerProxyAuthorization,
@@ -62,8 +63,7 @@ export async function krogerProxyMiddleware(req: Request, res: Response, next: (
       res.end(JSON.stringify(tokenJson));
       return;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(502).json({ error: message });
+      res.status(502).json(safeClientError(err, "Kroger token request failed."));
       return;
     }
   }
@@ -134,8 +134,7 @@ export async function krogerProxyMiddleware(req: Request, res: Response, next: (
       res.end(JSON.stringify(tokenJson));
       return;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (!res.headersSent) res.status(502).json({ error: message });
+      if (!res.headersSent) res.status(502).json(safeClientError(err, "Kroger sign-in exchange failed."));
       return;
     }
   }
@@ -185,8 +184,7 @@ export async function krogerProxyMiddleware(req: Request, res: Response, next: (
       res.end(JSON.stringify(tokenJson));
       return;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (!res.headersSent) res.status(502).json({ error: message });
+      if (!res.headersSent) res.status(502).json(safeClientError(err, "Kroger token refresh failed."));
       return;
     }
   }
@@ -238,10 +236,7 @@ export async function krogerProxyMiddleware(req: Request, res: Response, next: (
     const detail = cause instanceof Error ? cause.message : String(cause ?? "");
     logger.error({ err: message, detail, url }, "Kroger proxy fetch failed");
     if (!res.headersSent) {
-      res.status(502).json({
-        error: message,
-        detail: detail || undefined,
-      });
+      res.status(502).json(safeClientError(err, "Kroger API proxy failed."));
     }
   }
 }

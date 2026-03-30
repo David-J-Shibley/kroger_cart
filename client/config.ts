@@ -1,6 +1,6 @@
 /**
  * Client constants only — never put API secrets here (they ship in the browser bundle).
- * Kroger client ID, redirect URI, store location, and default model come from GET /api/public-config.
+ * Kroger client ID, redirect URI, store location, and default model come from static deploy-config.json.
  */
 export const OLLAMA_API_PATH = "/ollama-api";
 

@@ -167,6 +167,7 @@
         <button type="button" class="admin-nav__btn admin-nav__btn--active" data-panel="overview">Overview</button>
         <button type="button" class="admin-nav__btn" data-panel="users">Users</button>
         <button type="button" class="admin-nav__btn" data-panel="feedback">Feedback</button>
+        <button type="button" class="admin-nav__btn" data-panel="llm">LLM usage</button>
       </nav>
 
       <div id="adminPanelOverview" class="admin-panel">
@@ -199,6 +200,7 @@
                   <th>User ID (sub)</th>
                   <th>Subscription</th>
                   <th>Stripe customer</th>
+                  <th>Admin</th>
                   <th>Updated</th>
                 </tr>
               </thead>
@@ -214,6 +216,15 @@
           <p class="help-text">Newest first (from <code>FEEDBACK_TABLE</code>).</p>
           <p id="adminListStatus" class="help-text"></p>
           <div id="adminList"></div>
+        </div>
+      </div>
+
+      <div id="adminPanelLlm" class="admin-panel" hidden>
+        <div class="card">
+          <h2 style="margin-top:0">LLM usage &amp; limits</h2>
+          <p class="help-text">Per-user UTC daily caps and recent denials on <strong>this server instance</strong> (see note below).</p>
+          <p><button type="button" class="admin-btn-primary" id="adminLlmRefresh">Refresh</button></p>
+          <div id="adminLlmBody" class="help-text">Open this tab to load.</div>
         </div>
       </div>
     </div>
@@ -264,17 +275,45 @@
     var usersTabLoaded = false;
     var apiBaseRef = "";
 
+    async function loadLlmPanel(base) {
+      var el = document.getElementById("adminLlmBody");
+      if (!el) return;
+      el.textContent = "Loading…";
+      var r = await fetch(base + "/api/admin/llm-monitoring", adminFetchOpts());
+      var j = await r.json().catch(function () { return {}; });
+      if (!r.ok) {
+        el.textContent = j.error || ("Failed (" + r.status + ")");
+        return;
+      }
+      el.innerHTML =
+        '<p class="help-text">' +
+        escapeHtml(j.note || "") +
+        "</p>" +
+        "<p><strong>Daily cap per user (UTC):</strong> " +
+        escapeHtml(String(j.dailyCapPerUser ?? "—")) +
+        " · <strong>Chat JSON limit:</strong> " +
+        escapeHtml(String(j.chatJsonLimit ?? "—")) +
+        "</p>" +
+        "<h3 style=\"margin-top:1rem;font-size:1rem\">Recent denials</h3>" +
+        "<pre style=\"font-size:0.8125rem;white-space:pre-wrap;word-break:break-word;margin:0\">" +
+        escapeHtml(JSON.stringify(j.recentDenials || [], null, 2)) +
+        "</pre>";
+    }
+
     function setActivePanel(name) {
       document.querySelectorAll(".admin-nav__btn").forEach(function (b) {
         b.classList.toggle("admin-nav__btn--active", b.getAttribute("data-panel") === name);
       });
-      ["overview", "users", "feedback"].forEach(function (p) {
+      ["overview", "users", "feedback", "llm"].forEach(function (p) {
         var el = document.getElementById("adminPanel" + p.charAt(0).toUpperCase() + p.slice(1));
         if (el) el.hidden = p !== name;
       });
       if (name === "users" && !usersTabLoaded && apiBaseRef) {
         usersTabLoaded = true;
         fetchUsers(apiBaseRef, false);
+      }
+      if (name === "llm" && apiBaseRef) {
+        loadLlmPanel(apiBaseRef);
       }
     }
 
@@ -297,6 +336,7 @@
             u.stripeCustomerId,
             u.subscriptionStatus,
             u.updatedAt,
+            u.isAdmin,
           ]
             .filter(Boolean)
             .join(" ")
@@ -306,7 +346,7 @@
       }
       if (!tbody) return;
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="admin-meta">No users match.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="admin-meta">No users match.</td></tr>';
         return;
       }
       tbody.innerHTML = rows
@@ -317,6 +357,7 @@
           var sub = u.subscriptionStatus != null ? String(u.subscriptionStatus) : "none";
           var stripe = u.stripeCustomerId != null ? String(u.stripeCustomerId) : "—";
           var upd = u.updatedAt != null ? String(u.updatedAt) : "—";
+          var adm = u.isAdmin ? "yes" : "—";
           return (
             "<tr><td>" +
             escapeHtml(email) +
@@ -331,6 +372,8 @@
             "</span></td><td><code>" +
             escapeHtml(stripe) +
             "</code></td><td>" +
+            escapeHtml(adm) +
+            "</td><td>" +
             escapeHtml(upd) +
             "</td></tr>"
           );
@@ -384,14 +427,14 @@
       var rows = userState.rows;
       if (q) {
         rows = userState.rows.filter(function (u) {
-          var blob = [u.email, u.username, u.userId, u.stripeCustomerId, u.subscriptionStatus, u.updatedAt]
+          var blob = [u.email, u.username, u.userId, u.stripeCustomerId, u.subscriptionStatus, u.updatedAt, u.isAdmin]
             .filter(Boolean)
             .join(" ")
             .toLowerCase();
           return blob.indexOf(q) !== -1;
         });
       }
-      var headers = ["email", "username", "userId", "subscriptionStatus", "stripeCustomerId", "updatedAt"];
+      var headers = ["email", "username", "userId", "subscriptionStatus", "stripeCustomerId", "isAdmin", "updatedAt"];
       var lines = [headers.join(",")];
       rows.forEach(function (u) {
         lines.push(
@@ -418,7 +461,7 @@
       var content = document.getElementById("adminContent");
 
       try {
-        var pcr = await fetch(base + "/api/public-config");
+        var pcr = await fetch(window.location.origin + "/deploy-config.json", { cache: "no-store" });
         if (pcr.ok) {
           var pcj = await pcr.json();
           cookieSessionAuth = !!pcj.cookieSessionAuth;
@@ -457,7 +500,20 @@
           "</div>" +
           '<div class="overview-card"><strong>DynamoDB region</strong>' +
           escapeHtml(sj.dynamodbRegion || "—") +
+          "</div>" +
+          '<div class="overview-card"><strong>LLM daily cap / user</strong>' +
+          escapeHtml(String(sj.llmDailyCapPerUser != null ? sj.llmDailyCapPerUser : "—")) +
+          "</div>" +
+          '<div class="overview-card"><strong>LLM chat body limit</strong>' +
+          escapeHtml(String(sj.llmChatJsonLimit || "—")) +
           "</div>";
+      }
+
+      var llmRefBtn = document.getElementById("adminLlmRefresh");
+      if (llmRefBtn) {
+        llmRefBtn.addEventListener("click", function () {
+          if (apiBaseRef) loadLlmPanel(apiBaseRef);
+        });
       }
 
       document.getElementById("adminUsersRefresh").addEventListener("click", function () {

@@ -45,7 +45,7 @@
       var base = await window.krogerCartApiBase();
       var pub;
       try {
-        var pr = await fetch(base + "/api/public-config");
+        var pr = await fetch(window.location.origin + "/deploy-config.json", { cache: "no-store" });
         if (!pr.ok) throw new Error("HTTP " + pr.status);
         pub = await pr.json();
       } catch (e) {

@@ -42,7 +42,9 @@
       }
       sessionStorage.removeItem("cognitoOAuthState");
       try {
-        var cfg = await fetch(base + "/api/public-config").then(function (r) { return r.json(); });
+        var cfgR = await fetch(window.location.origin + "/deploy-config.json", { cache: "no-store" });
+        if (!cfgR.ok) throw new Error("Missing deploy-config.json on this host.");
+        var cfg = await cfgR.json();
         var redirectUri = cfg.cognitoRedirectUri;
         var res = await fetch(base + "/api/auth/cognito-token", {
           method: "POST",

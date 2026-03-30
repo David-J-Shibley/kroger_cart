@@ -1,11 +1,12 @@
 import type { Request, Response } from "express";
-import { isAdminRequest } from "../adminAccess.js";
+import { isUserAdmin } from "../adminAccess.js";
 import { config } from "../config.js";
 import { scanUsersForAdmin } from "../db/users.js";
+import { getRecentLlmDenials } from "../llmUsage.js";
 import { logger } from "../logger.js";
 import { scanFeedbackItems } from "./feedback.js";
 
-export function getAdminStatus(req: Request, res: Response): void {
+export async function getAdminStatus(req: Request, res: Response): Promise<void> {
   if (!config.authRequired) {
     res.json({ admin: false });
     return;
@@ -14,7 +15,7 @@ export function getAdminStatus(req: Request, res: Response): void {
     res.status(401).json({ error: "Unauthorized", admin: false });
     return;
   }
-  const admin = isAdminRequest(req);
+  const admin = await isUserAdmin(req);
   res.json({
     admin,
     ...(admin
@@ -23,13 +24,28 @@ export function getAdminStatus(req: Request, res: Response): void {
           feedbackTableConfigured: Boolean(config.feedbackTable.trim()),
           dynamodbRegion: config.dynamodbRegion,
           usersTableName: config.dynamodbUsersTable?.trim() || null,
+          llmDailyCapPerUser: config.llmDailyCapPerUser,
+          llmChatJsonLimit: config.llmChatJsonLimit,
         }
       : {}),
   });
 }
 
+export async function getAdminLlmMonitoring(req: Request, res: Response): Promise<void> {
+  if (!(await isUserAdmin(req))) {
+    res.status(403).json({ error: "Forbidden", error_description: "Admin access only." });
+    return;
+  }
+  res.json({
+    dailyCapPerUser: config.llmDailyCapPerUser,
+    chatJsonLimit: config.llmChatJsonLimit,
+    recentDenials: getRecentLlmDenials(100),
+    note: "Denials are per server instance (in-memory). Use CloudWatch/logs for full audit across tasks.",
+  });
+}
+
 export async function getAdminFeedback(req: Request, res: Response): Promise<void> {
-  if (!isAdminRequest(req)) {
+  if (!(await isUserAdmin(req))) {
     res.status(403).json({ error: "Forbidden", error_description: "Admin access only." });
     return;
   }
@@ -49,7 +65,7 @@ export async function getAdminFeedback(req: Request, res: Response): Promise<voi
 }
 
 export async function getAdminUsers(req: Request, res: Response): Promise<void> {
-  if (!isAdminRequest(req)) {
+  if (!(await isUserAdmin(req))) {
     res.status(403).json({ error: "Forbidden", error_description: "Admin access only." });
     return;
   }

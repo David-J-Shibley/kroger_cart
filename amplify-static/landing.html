@@ -95,22 +95,21 @@
     (async function () {
       try {
         var apiOrigin = location.origin;
+        var cfg = null;
         try {
           var dr = await fetch("/deploy-config.json", { cache: "no-store" });
           if (dr.ok) {
-            var dj = await dr.json();
-            var o = dj.apiOrigin && String(dj.apiOrigin).trim().replace(/\/+$/, "");
+            cfg = await dr.json();
+            var o = cfg.apiOrigin && String(cfg.apiOrigin).trim().replace(/\/+$/, "");
             if (o && /^https?:\/\//i.test(o)) apiOrigin = o;
           }
         } catch (e) { /* use page origin */ }
 
-        var pr = await fetch(apiOrigin + "/api/public-config", { cache: "no-store" });
-        if (pr.ok) {
-          var cfg = await pr.json();
-          if (!cfg.authRequired) {
-            window.location.replace("/index.html");
-            return;
-          }
+        if (cfg && !cfg.authRequired) {
+          window.location.replace("/index.html");
+          return;
+        }
+        if (cfg) {
           try {
             if (cfg.cookieSessionAuth) {
               var mr = await fetch(apiOrigin + "/api/me", {

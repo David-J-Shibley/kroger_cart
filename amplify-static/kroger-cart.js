@@ -51,21 +51,45 @@ function clearLegacyBrowserSecretsIfCookieSession(cookieSessionAuth) {
   } catch {
   }
 }
-function pageOrigin() {
+async function initBackendOrigin() {
+  if (backendOriginCache !== null) return backendOriginCache;
+  if (typeof window === "undefined") {
+    backendOriginCache = "";
+    return "";
+  }
+  try {
+    const r = await fetch("/deploy-config.json", { cache: "no-store" });
+    if (r.ok) {
+      const j = await r.json();
+      const o = j.apiOrigin?.trim().replace(/\/$/, "");
+      if (o && /^https?:\/\//i.test(o)) {
+        backendOriginCache = o;
+        return o;
+      }
+    }
+  } catch {
+  }
+  backendOriginCache = window.location.origin;
+  return backendOriginCache;
+}
+function getBackendOrigin() {
+  if (backendOriginCache !== null) return backendOriginCache;
   return typeof window !== "undefined" ? window.location.origin : "";
 }
-async function loadDeployConfig() {
+function apiUrl(path) {
+  const b = getBackendOrigin();
+  const p = path.startsWith("/") ? path : "/" + path;
+  return b + p;
+}
+async function ensurePublicConfig() {
   if (cached) return cached;
-  const origin = pageOrigin();
-  const res = await fetch(`${origin}/deploy-config.json`, { cache: "no-store" });
+  await initBackendOrigin();
+  const res = await fetch(apiUrl("/api/public-config"));
   if (!res.ok) {
-    throw new Error(
-      "Missing or invalid deploy-config.json (HTTP " + res.status + "). Copy deploy-config.sample.json to deploy-config.json and fill in values."
-    );
+    throw new Error("Failed to load app configuration (HTTP " + res.status + ")");
   }
   const raw = await res.json();
-  const apiRaw = typeof raw.apiOrigin === "string" ? raw.apiOrigin.trim().replace(/\/$/, "") : "";
-  backendOriginCache = apiRaw && /^https?:\/\//i.test(apiRaw) ? apiRaw : origin || "";
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
   const llmModel = String(raw.llmModel ?? raw.ollamaModel ?? "qwen3:8b").trim();
   const prov = String(raw.llmProvider ?? "").toLowerCase();
   const llmProvider = prov === "featherless" ? "featherless" : "ollama";
@@ -91,26 +115,14 @@ async function loadDeployConfig() {
   clearLegacyBrowserSecretsIfCookieSession(cookieSessionAuth);
   return cached;
 }
-async function ensurePublicConfig() {
-  return loadDeployConfig();
-}
 function getPublicConfig() {
   if (!cached) {
-    throw new Error("App configuration not loaded yet \u2014 call loadDeployConfig() first");
+    throw new Error("App configuration not loaded yet");
   }
   return cached;
 }
 function tryGetPublicConfig() {
   return cached;
-}
-function getBackendOrigin() {
-  if (backendOriginCache !== null) return backendOriginCache;
-  return typeof window !== "undefined" ? window.location.origin : "";
-}
-function apiUrl(path) {
-  const b = getBackendOrigin();
-  const p = path.startsWith("/") ? path : "/" + path;
-  return b + p;
 }
 function getKrogerLocationId() {
   return tryGetPublicConfig()?.krogerLocationId ?? "";
@@ -1714,7 +1726,7 @@ async function init() {
     const boot = document.getElementById("bootError");
     if (boot) {
       boot.hidden = false;
-      boot.textContent = "Could not load deploy-config.json from this site. Add deploy-config.json next to index.html (copy deploy-config.sample.json) and ensure apiOrigin points at your API when UI and API are on different hosts.";
+      boot.textContent = "Could not load server configuration (/api/public-config). The app cannot enforce sign-in until the server is reachable. If you use Docker, ensure the app container loads your .env (see docker-compose env_file).";
     }
   }
   if (cfg && cfg.authRequired && !isAuthFlowPath()) {

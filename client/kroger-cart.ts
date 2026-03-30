@@ -148,7 +148,7 @@ async function init(): Promise<void> {
     if (boot) {
       boot.hidden = false;
       boot.textContent =
-        "Could not load server configuration (/api/public-config). The app cannot enforce sign-in until the server is reachable. If you use Docker, ensure the app container loads your .env (see docker-compose env_file).";
+        "Could not load deploy-config.json from this site. Add deploy-config.json next to index.html (copy deploy-config.sample.json) and ensure apiOrigin points at your API when UI and API are on different hosts.";
     }
   }
   if (cfg && cfg.authRequired && !isAuthFlowPath()) {

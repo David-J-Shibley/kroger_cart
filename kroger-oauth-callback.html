@@ -60,7 +60,9 @@
       const redirectUri = sessionStorage.getItem("krogerOAuthRedirectUri") || (window.location.origin + "/kroger-oauth-callback.html");
 
       try {
-        var pub = await fetch(base + "/api/public-config").then(function (r) { return r.json(); });
+        var pubR = await fetch(window.location.origin + "/deploy-config.json", { cache: "no-store" });
+        if (!pubR.ok) throw new Error("Missing deploy-config.json");
+        var pub = await pubR.json();
         var xh = { "Content-Type": "application/json" };
         if (!pub.cookieSessionAuth) {
           var acc = localStorage.getItem("appCognitoAccessToken");

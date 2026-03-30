@@ -20,7 +20,7 @@ llmProxyRouter.use((req: Request, res: Response, next: express.NextFunction) => 
   next();
 });
 
-const chatJson = express.json({ limit: "2mb" });
+const chatJson = express.json({ limit: config.llmChatJsonLimit });
 
 llmProxyRouter.post("/api/chat", chatJson, async (req: Request, res: Response) => {
   setOllamaCors(res);

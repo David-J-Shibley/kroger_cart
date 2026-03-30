@@ -1,0 +1,16 @@
+{
+  "apiOrigin": "https://your-api-host.example.com",
+  "krogerClientId": "",
+  "krogerRedirectUri": "https://your-static-host.example.com/kroger-oauth-callback.html",
+  "krogerLocationId": "",
+  "llmProvider": "featherless",
+  "llmModel": "Qwen/Qwen2.5-7B-Instruct",
+  "cognitoDomain": "your-pool.auth.us-east-1.amazoncognito.com",
+  "cognitoClientId": "",
+  "cognitoRedirectUri": "https://your-static-host.example.com/auth-callback.html",
+  "authRequired": true,
+  "authAllowAnonymousBrowsing": false,
+  "subscriptionRequired": false,
+  "cookieSessionAuth": false,
+  "testMode": false
+}
