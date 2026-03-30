@@ -19,7 +19,6 @@ const copyFromRoot = [
   "feedback.html",
   "admin.html",
   "robots.txt",
-  "google25ceccb1f139df8.html",
 ];
 
 await fs.mkdir(www, { recursive: true });
