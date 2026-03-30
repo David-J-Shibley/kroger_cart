@@ -1,5 +1,5 @@
 /**
- * Static sample output for UI / Kroger “Add to cart” testing when Ollama or the network is unavailable.
+ * Static sample output for UI / Kroger “Add to cart” testing without calling the LLM.
  * Shape matches what the app expects: short meal plan + a “Grocery list:” section with one item per line.
  */
 export const EXAMPLE_MEAL_PLAN_TEXT = `Sample meal plan (example — not from AI)

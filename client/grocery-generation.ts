@@ -1,12 +1,12 @@
 import { appState } from "./app-state.js";
 import { mergeAppAuth } from "./authed-fetch.js";
-import { OLLAMA_API_PATH, SAVED_LLM_KEY } from "./config.js";
+import { SAVED_LLM_KEY } from "./config.js";
 import {
   apiUrl,
   ensurePublicConfig,
   getAppOrigin,
-  getLlmProvider,
-  getOllamaModel,
+  getLlmModel,
+  getLlmProxyPrefix,
   tryGetPublicConfig,
 } from "./public-config.js";
 import { escapeHtml, parseGroceryLines } from "./html-utils.js";
@@ -16,7 +16,7 @@ import {
   persistMealPlanPrefs,
   readMealPlanPrefsFromForm,
 } from "./meal-plan.js";
-import type { OllamaMessage } from "./types.js";
+import type { LlmStreamLine } from "./types.js";
 import { EXAMPLE_MEAL_PLAN_TEXT } from "./example-meal-plan.js";
 import { showBulkAddKrogerFollowup } from "./kroger-app-launch.js";
 import { searchAndAddToCart } from "./add-to-cart.js";
@@ -24,45 +24,6 @@ import { getAutoAddEnabled } from "./auto-cart-prefs.js";
 import { syncAddAllToCartToolbar } from "./auto-cart-ui.js";
 
 const BULK_ADD_DELAY_MS = 400;
-
-/**
- * deploy-config `llmProvider` only affects UI copy; the API server decides Ollama vs Featherless.
- * Fail fast when they disagree so we do not hang on an unreachable Ollama.
- */
-async function assertDeployMatchesApiLlmBackend(): Promise<void> {
-  let r: Response;
-  try {
-    r = await fetch(apiUrl("/api/health"), { cache: "no-store" });
-  } catch {
-    return;
-  }
-  if (!r.ok) return;
-  const j = (await r.json()) as { llmProvider?: string };
-  const raw = j.llmProvider;
-  /** Old servers / cached health without this field — do not assume "ollama" or we false-positive and block Featherless. */
-  if (raw !== "featherless" && raw !== "ollama") return;
-  const server = raw;
-  const client = getLlmProvider();
-  if (server === client) return;
-  const api = getAppOrigin();
-  if (client === "featherless") {
-    throw new Error(
-      "This site is set to Featherless in deploy-config.json, but the API at " +
-        api +
-        ' reports "' +
-        server +
-        '". Set FEATHERLESS_API_KEY on the API server (and LLM_PROVIDER=featherless), restart, and try again. ' +
-        "If you intend to use Ollama, set llmProvider to ollama in deploy-config.json."
-    );
-  }
-  throw new Error(
-    'This site expects Ollama in deploy-config.json, but the API at ' +
-      api +
-      ' reports "' +
-      server +
-      '". Set LLM_PROVIDER=ollama and point OLLAMA_ORIGIN at your Ollama instance, or set llmProvider to featherless in deploy-config to match the server.'
-  );
-}
 
 function getCheckedGroceryLinesFromDom(): string[] {
   const list = document.getElementById("generated-list");
@@ -290,22 +251,17 @@ export async function generateGroceryList(): Promise<void> {
   out.innerHTML = '<pre class="generated-text">Connecting...</pre>';
   const pre = out.querySelector("pre");
   (btn as HTMLButtonElement).disabled = true;
-  let modelHint = "qwen3:8b";
+  let modelHint = "Qwen/Qwen2.5-7B-Instruct";
   const slowHintId = setTimeout(() => {
     if (pre && pre.textContent === "Connecting...") {
-      if (getLlmProvider() === "featherless") {
-        pre.textContent =
-          "Connecting…\n\nStill waiting? The API host (deploy-config apiOrigin) must have FEATHERLESS_API_KEY; llmProvider in deploy-config alone does not enable Featherless. Also verify LLM_MODEL on the server and your Featherless plan. Docs: https://featherless.ai/docs/overview";
-      } else {
-        pre.textContent =
-          "Connecting…\n\nTaking a while? If you're using Docker, pull the model first:\n  docker exec -it kroger-ollama ollama pull " +
-          modelHint;
-      }
+      pre.textContent =
+        "Connecting…\n\nStill waiting? The API host (deploy-config apiOrigin) needs FEATHERLESS_API_KEY and must route " +
+        (tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api") +
+        " to Express. Check LLM_MODEL on the server and your Featherless plan. Docs: https://featherless.ai/docs/overview";
     }
   }, 15000);
   try {
     await ensurePublicConfig();
-    await assertDeployMatchesApiLlmBackend();
     const pub = tryGetPublicConfig();
     if (pub?.authRequired) {
       const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
@@ -317,20 +273,21 @@ export async function generateGroceryList(): Promise<void> {
         return;
       }
     }
-    const ollamaModel = getOllamaModel();
-    modelHint = ollamaModel;
+    const llmModel = getLlmModel();
+    const llmPrefix = getLlmProxyPrefix();
+    modelHint = llmModel;
     const prefs = readMealPlanPrefsFromForm();
     persistMealPlanPrefs(prefs);
     const prompt = buildMealPlanPrompt(prefs);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 600_000);
     const response = await fetch(
-      getAppOrigin() + OLLAMA_API_PATH + "/api/chat",
+      getAppOrigin() + llmPrefix + "/api/chat",
       mergeAppAuth({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: ollamaModel,
+          model: llmModel,
           messages: [{ role: "user", content: prompt }],
           stream: true,
           options: { num_predict: mealPlanNumPredict(prefs) },
@@ -368,7 +325,7 @@ export async function generateGroceryList(): Promise<void> {
       for (const line of lines) {
         if (!line.trim()) continue;
         try {
-          const obj = JSON.parse(line) as OllamaMessage;
+          const obj = JSON.parse(line) as LlmStreamLine;
           const content = obj.message?.content;
           if (content) {
             text += content;
@@ -384,7 +341,7 @@ export async function generateGroceryList(): Promise<void> {
     }
     if (buffer.trim()) {
       try {
-        const obj = JSON.parse(buffer) as OllamaMessage;
+        const obj = JSON.parse(buffer) as LlmStreamLine;
         if (obj.message?.content) text += obj.message.content;
       } catch {
         /* ignore */
@@ -395,35 +352,26 @@ export async function generateGroceryList(): Promise<void> {
   } catch (err) {
     clearTimeout(slowHintId);
     console.error(err);
-    const model = getOllamaModel();
+    const model = getLlmModel();
     const raw = err instanceof Error ? err.message : String(err);
     let msg: string;
     if (err instanceof Error && err.name === "AbortError") {
       msg =
-        getLlmProvider() === "featherless"
-          ? "Request timed out after 10 minutes. Try lowering LLM_MODEL size or simplifying the meal-plan prompt."
-          : "Request timed out after 10 minutes. Try a smaller model or shorter prompt. In Docker, ensure the model is pulled: docker exec -it kroger-ollama ollama pull " +
-            model;
+        "Request timed out after 10 minutes. Try lowering LLM_MODEL size or simplifying the meal-plan prompt.";
     } else {
       msg = "Error: " + raw;
-      const looksLikeOllamaOrNetwork =
-        /ECONNREFUSED|ENOTFOUND|fetch failed|Cannot reach Ollama|502|model|pull/i.test(raw) ||
+      const looksLikeLlmOrNetwork =
+        /ECONNREFUSED|ENOTFOUND|fetch failed|502|model|Featherless|featherless/i.test(raw) ||
         (/HTTP 5/.test(raw) && !/DYNAMODB|subscription/i.test(raw));
       const isAuthOrBillingGate =
         /DYNAMODB_USERS_TABLE|subscription is required|SUBSCRIPTION_REQUIRED|Unauthorized|Missing Cognito|Invalid or expired token/i.test(
           raw
         );
-      if (looksLikeOllamaOrNetwork && !isAuthOrBillingGate) {
-        if (getLlmProvider() === "featherless") {
-          msg +=
-            "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, and outbound HTTPS to api.featherless.ai is allowed. See https://featherless.ai/docs/overview";
-        } else {
-          msg +=
-            "\n\nMake sure Ollama is running and the model '" +
-            model +
-            "' is pulled. In Docker: docker exec -it kroger-ollama ollama pull " +
-            model;
-        }
+      if (looksLikeLlmOrNetwork && !isAuthOrBillingGate) {
+        msg +=
+          "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, outbound HTTPS to api.featherless.ai is allowed, and your CDN forwards " +
+          getLlmProxyPrefix() +
+          " to Express. See https://featherless.ai/docs/overview";
       } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
         msg +=
           "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";

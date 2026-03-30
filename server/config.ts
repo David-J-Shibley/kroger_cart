@@ -59,20 +59,8 @@ function resolveAuthRequired(): boolean {
 
 const featherlessApiKey = envStr("FEATHERLESS_API_KEY");
 
-/** Ollama (local/self-hosted) vs Featherless.ai OpenAI-compatible API. */
-function resolveLlmProvider(): "ollama" | "featherless" {
-  const explicit = envStr("LLM_PROVIDER").toLowerCase();
-  if (explicit === "ollama") return "ollama";
-  if (explicit === "featherless") return "featherless";
-  return featherlessApiKey ? "featherless" : "ollama";
-}
-
-const llmProviderResolved = resolveLlmProvider();
 const llmModelResolved =
-  envStr("LLM_MODEL") ||
-  envStr("OLLAMA_MODEL") ||
-  envStr("FEATHERLESS_MODEL") ||
-  (llmProviderResolved === "featherless" ? "Qwen/Qwen2.5-7B-Instruct" : "qwen3:8b");
+  envStr("LLM_MODEL") || envStr("FEATHERLESS_MODEL") || "Qwen/Qwen2.5-7B-Instruct";
 
 /** Trust `X-Forwarded-For` / `req.ip` behind reverse proxies. `1` = one hop (typical ALB). `true` = all hops. */
 function resolveTrustProxy(): boolean | number {
@@ -83,11 +71,11 @@ function resolveTrustProxy(): boolean | number {
   return 1;
 }
 
+const llmUpstreamTimeoutMs = parseInt(process.env.LLM_PROXY_TIMEOUT_MS || "600000", 10);
+
 export const config = {
   port: parseInt(process.env.PORT || "8000", 10),
   host: process.env.HOST || "0.0.0.0",
-  ollamaOrigin: process.env.OLLAMA_ORIGIN || "http://127.0.0.1:11434",
-  ollamaProxyTimeoutMs: parseInt(process.env.OLLAMA_PROXY_TIMEOUT_MS || "600000", 10),
 
   /** Server-side only — not in browser deploy-config. */
   featherlessApiKey,
@@ -96,9 +84,9 @@ export const config = {
     /\/+$/,
     ""
   ),
-  llmProvider: llmProviderResolved,
-  /** Model id for the active provider (Ollama tag or Featherless / HF-style id). */
+  /** HuggingFace-style model id for Featherless OpenAI-compatible API. */
   llmModel: llmModelResolved.trim(),
+  llmUpstreamTimeoutMs,
 
   /** Cognito JWT on protected routes; browser redirect to /auth.html when true. */
   authRequired: resolveAuthRequired(),
@@ -166,7 +154,7 @@ export const config = {
 
   /** Max LLM chat requests per Cognito user per UTC day (0 = unlimited). */
   llmDailyCapPerUser: Math.max(0, parseInt(process.env.LLM_DAILY_CAP_PER_USER || "200", 10) || 0),
-  /** express.json limit for POST /ollama-api/api/chat */
+  /** express.json limit for POST …/api/chat on the LLM proxy */
   llmChatJsonLimit: envStr("LLM_CHAT_JSON_LIMIT", "256kb"),
 
   trustProxy: resolveTrustProxy(),

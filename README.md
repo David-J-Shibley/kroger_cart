@@ -1,131 +1,67 @@
-# Kroger Shopping Cart
+# Kroger Cart
 
-Generate a weekly meal plan and grocery list with a local LLM (Ollama), then add items to your **Kroger** cart in one click. Sign in with your Kroger account, pick products when there are multiple matches, and keep your cart in sync—all from a single page.
-
+Generate a weekly meal plan and grocery list with **[Featherless.ai](https://featherless.ai)** (OpenAI-compatible API), then add items to your **Kroger** cart in one click. Sign in with your Kroger account, pick products when there are multiple matches, and keep your cart in sync—all from a single page.
 
 ## Features
 
-- **Meal plan + grocery list** — Ollama generates a 7-day meal plan for a family of three and one consolidated shopping list. Streams output as it’s generated.
-- **Add to Kroger cart** — Sign in with Kroger (OAuth), search by product name, and add items. When multiple products match, choose from a modal (sort by price, view full metadata).
-- **Persistent login** — Uses Kroger’s refresh token so you stay signed in across reloads.
-- **Runs locally or in Docker** — Use Ollama on your machine or run both the app and Ollama in Docker Compose.
+- **Meal plan + grocery list** — LLM generates a meal plan and one consolidated shopping list. Streams output as it’s generated.
+- **Kroger integration** — OAuth sign-in, product search, cart add, and refresh-token handling via a server proxy (no Kroger secrets in the browser).
+- **Runs locally or in Docker** — Express serves static UI + proxies; set `FEATHERLESS_API_KEY` on the server.
 
 ## Prerequisites
 
-- **Node.js** 18+ (for local run)
-- **Ollama** — [Install](https://ollama.com) and pull a model (e.g. `ollama pull qwen3:8b`)
-- **Kroger developer account** — [Create an app](https://developer.kroger.com/) to get Client ID and Client Secret, and add a redirect URI for OAuth
+- **Node.js** 20+
+- **Featherless API key** — [Dashboard](https://featherless.ai/account/api-keys); set `FEATHERLESS_API_KEY` in `.env` (server only).
+- **Kroger Developer** app — [Kroger Public API](https://developer.kroger.com/) client ID/secret (server env); redirect URI and location ID in `deploy-config.json`.
 
-## Quick start (local)
-
-1. **Clone and install**
-
-   ```bash
-   git clone https://github.com/David-J-Shibley/kroger_cart
-   cd kroger_cart
-   npm install
-   ```
-
-2. **Build the client**
-
-   ```bash
-   npm run build:client
-   ```
-
-3. **Add your Kroger credentials (server only — never in the browser bundle)**
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   Edit `.env` and set at least:
-
-   - `KROGER_CLIENT_ID` — from Kroger Developer Portal  
-   - `KROGER_CLIENT_SECRET` — from Kroger Developer Portal (stays on the server)  
-   - Optionally `KROGER_REDIRECT_URI` — must match the portal exactly (if omitted locally, the server derives `http://localhost:8000/kroger-oauth-callback.html` from the request)
-
-   Rebuild the client if you only changed TypeScript: `npm run build:client`
-
-4. **Start the server**
-
-   ```bash
-   npm start
-   ```
-
-5. **Open the app**
-
-   Go to **http://localhost:8000/kroger-cart.html**
-
-6. **Sign in with Kroger** (first time only), then generate a meal plan or add products manually.
-
-## Quick start (Docker)
-
-Run the app and Ollama together:
+## Quick start
 
 ```bash
-docker compose up -d
-docker exec -it kroger-ollama ollama pull qwen3:8b   # pull the default model
+cp deploy-config.sample.json deploy-config.json
+# Edit deploy-config.json (Kroger IDs, redirect URIs, apiOrigin if UI and API differ).
+# Create .env with FEATHERLESS_API_KEY, KROGER_*, Cognito vars if using auth — see repo docs.
+npm install
+npm run build:client
+npm start
 ```
 
-Open **http://localhost:8000/kroger-cart.html**.  
-Pass `KROGER_CLIENT_ID` and `KROGER_CLIENT_SECRET` into the app container (env file or compose `environment:`), not into the client bundle.
+Open **http://localhost:8000/index.html** (or **http://localhost:8000/** if `AUTH_REQUIRED` is on).
 
-For more options (Ollama on host, custom port, 502 troubleshooting), see **[DOCKER.md](DOCKER.md)**.
+### Docker
 
-## Kroger setup
+```bash
+docker build -t kroger-cart .
+docker run -p 8000:8000 --env-file .env kroger-cart
+```
 
-1. Go to [Kroger Developer Portal](https://developer.kroger.com/) and create an application.
-2. Under **Redirect URIs**, add the exact URL your app uses for the OAuth callback, e.g.:
-   - Local: `http://localhost:8000/kroger-oauth-callback.html`
-   - Production: `https://your-domain.com/kroger-oauth-callback.html`
-3. Copy **Client ID** and **Client Secret** into the **server** environment (`.env` or your host’s secret store), not the frontend.
-4. Ensure your app has access to **Products** (for search) and **Cart** (for add); the OAuth scope used is `product.compact` and `cart.basic:write`.
-
-The in-app help text shows the redirect URI the client expects so you can match it in the portal.
+Or `docker compose up -d --build` (see **[DOCKER.md](DOCKER.md)**).
 
 ## Configuration
 
-| What | Where | Default |
-|------|--------|--------|
-| Kroger ID / secret | Server env: `KROGER_CLIENT_ID`, `KROGER_CLIENT_SECRET` | (required) |
-| OAuth redirect | `KROGER_REDIRECT_URI` or derived from request | see `.env.example` |
-| Ollama model name | `OLLAMA_MODEL` | `qwen3:8b` |
-| Kroger store (location ID) | `KROGER_LOCATION_ID` | optional |
-| Server port | `PORT` | `8000` |
-| Ollama URL (proxy target) | `OLLAMA_ORIGIN` | `http://127.0.0.1:11434` |
-| LLM backend | `LLM_PROVIDER` | `ollama` unless `FEATHERLESS_API_KEY` is set, then `featherless` |
-| Featherless API key (server only) | `FEATHERLESS_API_KEY` | (optional; [Featherless.ai](https://featherless.ai/docs/overview)) |
-| Featherless API base | `FEATHERLESS_API_BASE` | `https://api.featherless.ai/v1` |
-| Model id (Ollama or Featherless) | `LLM_MODEL` (falls back to `OLLAMA_MODEL` / `FEATHERLESS_MODEL`) | `qwen3:8b` or `Qwen/Qwen2.5-7B-Instruct` by provider |
-
-The browser loads **public** settings from `GET /api/public-config` (no secrets). See `.env.example`.
-
-**Featherless.ai:** Set `FEATHERLESS_API_KEY` (and optionally `LLM_PROVIDER=featherless`, `LLM_MODEL=<model id from Featherless>`). The server calls OpenAI-compatible `POST …/v1/chat/completions` and streams results through the existing `/ollama-api` path so the UI does not expose your key.
-
-## Project structure
-
-| Path | Purpose |
+| What | Where |
 |------|--------|
-| `server.ts` | Express server: static files, Ollama proxy, Kroger proxy + OAuth exchange/refresh |
-| `kroger-cart.html` | Single-page UI |
-| `kroger-cart.css` | Styles |
-| `client/` | Browser app source (TypeScript modules); `npm run build:client` typechecks with `tsc` and bundles to `dist/kroger-cart.js` with esbuild |
-| `kroger-oauth-callback.html` | OAuth redirect; exchanges code for tokens |
-| `DOCKER.md` | Docker runbook |
-| `ARCHITECTURE.md` | Technical overview, decisions, and APIs |
+| Static + browser | `deploy-config.json` (next to `index.html`): `apiOrigin`, Kroger client id, redirects, `llmModel`, optional `llmProxyPrefix` (default `/llm-api`) |
+| Secrets + server | `.env`: `FEATHERLESS_API_KEY`, `LLM_MODEL`, `KROGER_CLIENT_SECRET`, Cognito, Stripe, DynamoDB, etc. |
 
-## Scripts
+**LLM proxy:** The server exposes **`POST /llm-api/api/chat`**. The client uses `llmProxyPrefix` from `deploy-config.json` (default `/llm-api`); set it if your ingress uses a different path.
 
-- `npm start` — Run the server (tsx)
-- `npm run build:client` — Typecheck client with `tsc`, bundle `client/kroger-cart.ts` → `dist/kroger-cart.js` (ESM)
+**Featherless:** Server calls `POST …/v1/chat/completions` at `FEATHERLESS_API_BASE` (default `https://api.featherless.ai/v1`). The browser never sees your API key.
 
-## Documentation
+## Project layout
 
-- **[DOCKER.md](DOCKER.md)** — Running with Docker, Ollama in/out of containers, 502 fixes.
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** — How the app is built, technical decisions, Kroger/Ollama integration, security notes.
-- **[SAAS-NEXT-STEPS.md](SAAS-NEXT-STEPS.md)** — Roadmap for hosted SaaS: auth, billing, legal, ops.
-- **[AWS-DEPLOY.md](AWS-DEPLOY.md)** — Cognito, DynamoDB, Stripe webhooks, ECS/ALB, monitoring on AWS.
+| Path | Role |
+|------|------|
+| `client/` | TypeScript UI — bundled to `dist/kroger-cart.js` |
+| `server/` | Express: `/api`, `/llm-api`, `/kroger-api`, static files |
+| `server.ts` | Entry |
+| `deploy-config.json` | Public browser config (no secrets) |
+
+## Docs
+
+- **[DOCKER.md](DOCKER.md)** — Docker runbook  
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — Technical overview  
+- **[AWS-DEPLOY.md](AWS-DEPLOY.md)** — AWS / ECS notes  
 
 ## License
 
-[Add your license here, e.g. MIT, Apache-2.0, or see LICENSE file.]
+Use and modify for your own deployment. Kroger and Featherless.ai are subject to their respective terms.

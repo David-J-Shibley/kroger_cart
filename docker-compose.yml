@@ -1,39 +1,14 @@
-# Run Kroger Cart + Ollama in Docker
-# Usage:
-#   docker compose up -d
-#   docker exec -it kroger-cart-ollama-1 ollama pull qwen3:8b   # pull model
-#   Open http://localhost:8000/index.html
+# Kroger Cart API (Express). Meal plans use Featherless.ai — set FEATHERLESS_API_KEY (e.g. in .env).
+#   docker compose up -d --build
+#   open http://localhost:8000/index.html
 
 services:
-  ollama:
-    image: ollama/ollama
-    container_name: kroger-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - kroger-net
-
   app:
     build: .
-    container_name: kroger-cart
     ports:
       - "8000:8000"
     env_file:
-      - path: .env
-        required: false
+      - .env
     environment:
-      - OLLAMA_ORIGIN=http://ollama:11434
-      # Other vars (AUTH_REQUIRED, Cognito, Kroger, etc.) come from .env via env_file above.
-    depends_on:
-      - ollama
-    networks:
-      - kroger-net
-
-volumes:
-  ollama-data:
-
-networks:
-  kroger-net:
-    driver: bridge
+      - PORT=8000
+      - HOST=0.0.0.0

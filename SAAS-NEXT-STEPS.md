@@ -34,15 +34,15 @@ Have a lawyer review before selling widely.
 
 ### 5. Hardening (short list)
 
-- Rate limit `/kroger-api/*` and `/ollama-api/*` per IP or per user session.
+- Rate limit `/kroger-api/*` and `/llm-api/*` per IP or per user session.
 - **CORS:** restrict `Access-Control-Allow-Origin` if you ever expose APIs cross-origin.
 - **Content Security Policy** headers on HTML responses.
 - Rotate **Kroger** credentials if they were ever committed; use **only** env/secrets manager in production.
 
-### 6. Ollama on the web
+### 6. LLM (Featherless) on the web
 
-- Put Ollama **behind** your network (not public `:11434` without auth). This app already proxies via `OLLAMA_ORIGIN` — only the Node server should reach Ollama.
-- If multiple customers share one Ollama server, add **per-tenant quotas** or dedicated instances for enterprise plans.
+- Keys stay **server-side**; the browser calls your Express `/llm-api` proxy only.
+- Use **per-user daily caps** (already in Dynamo) and rate limits; upgrade Featherless plan or model tier as usage grows.
 
 ---
 

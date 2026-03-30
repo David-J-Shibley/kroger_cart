@@ -49,15 +49,15 @@ Set `DYNAMODB_USERS_TABLE` to the table name.
 
 Checkout sessions attach `metadata.cognito_sub` on the subscription so webhooks can map Stripe events back to Cognito users without a GSI on `stripeCustomerId`.
 
-## 4. Ollama
+## 4. Featherless (meal plans)
 
-Run Ollama on **private** networking only (same VPC as ECS, or a separate host reachable from the task). Set `OLLAMA_ORIGIN` to the internal URL (e.g. `http://ollama.internal:11434`). Do not expose Ollama `:11434` to the public internet.
+Store **`FEATHERLESS_API_KEY`** in Secrets Manager and inject into the ECS task. The task must allow **outbound HTTPS** to `api.featherless.ai` (and your `FEATHERLESS_API_BASE` if overridden). No LLM runs inside your VPC.
 
 ## 5. Abuse controls
 
 - **AWS WAF** on the ALB: rate-based rules, IP allowlists, geo rules as needed.
 - App-level limits use `express-rate-limit` (env vars in `.env.example`).
-- **Kroger / Ollama** proxies require a valid Cognito JWT when `AUTH_REQUIRED=true`.
+- **Kroger / LLM** proxies require a valid Cognito JWT when `AUTH_REQUIRED=true`.
 
 ## 6. Monitoring
 

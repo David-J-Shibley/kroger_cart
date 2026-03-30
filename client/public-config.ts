@@ -1,15 +1,18 @@
 /** Public deployment settings from static `deploy-config.json` (same origin as the HTML). No /api/public-config. */
 
+const DEFAULT_LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct";
+
 export interface PublicConfig {
   krogerClientId: string;
   krogerRedirectUri: string;
   krogerLocationId: string;
-  /** `ollama` (local proxy) or `featherless` (Featherless.ai API). */
-  llmProvider: "ollama" | "featherless";
-  /** Model id for the configured LLM backend. */
+  /** Featherless / HuggingFace-style model id (must exist on your Featherless plan). */
   llmModel: string;
-  /** Same as llmModel — legacy field name. */
-  ollamaModel: string;
+  /**
+   * Path prefix for meal LLM POST …/api/chat. Default `/llm-api`.
+   * Use a different prefix only if your ingress still points at an older path (server may mount both).
+   */
+  llmProxyPrefix: string;
   cognitoDomain: string;
   cognitoClientId: string;
   cognitoRedirectUri: string;
@@ -25,7 +28,7 @@ export interface PublicConfig {
 
 let cached: PublicConfig | null = null;
 
-/** Origin of the Express API (proxies, /api, /kroger-api, /ollama-api). Filled after loadDeployConfig(). */
+/** Origin of the Express API (proxies, /api, /kroger-api, /llm-api). Filled after loadDeployConfig(). */
 let backendOriginCache: string | null = null;
 
 /** Keys we must not keep in the browser when the server uses HttpOnly cookie sessions. */
@@ -97,18 +100,21 @@ export async function loadDeployConfig(): Promise<PublicConfig> {
     origin
   );
 
-  const llmModel = String(raw.llmModel ?? raw.ollamaModel ?? "qwen3:8b").trim();
-  const prov = String(raw.llmProvider ?? "").toLowerCase();
-  const llmProvider: "ollama" | "featherless" =
-    prov === "featherless" ? "featherless" : "ollama";
+  const llmModel = String(raw.llmModel ?? raw.featherlessModel ?? DEFAULT_LLM_MODEL).trim();
+  const prefixRaw = String(raw.llmProxyPrefix ?? "").trim().replace(/\/$/, "");
+  const llmProxyPrefix =
+    prefixRaw && prefixRaw.startsWith("/")
+      ? prefixRaw
+      : prefixRaw
+        ? "/" + prefixRaw.replace(/^\/+/, "")
+        : "/llm-api";
   const cookieSessionAuth = Boolean(raw.cookieSessionAuth);
   cached = {
     krogerClientId: String(raw.krogerClientId ?? ""),
     krogerRedirectUri: String(raw.krogerRedirectUri ?? ""),
     krogerLocationId: String(raw.krogerLocationId ?? ""),
-    llmProvider,
-    llmModel: llmModel || "qwen3:8b",
-    ollamaModel: llmModel || "qwen3:8b",
+    llmModel: llmModel || DEFAULT_LLM_MODEL,
+    llmProxyPrefix,
     cognitoDomain: normalizeCognitoDomain(String(raw.cognitoDomain ?? "")),
     cognitoClientId: String(raw.cognitoClientId ?? ""),
     cognitoRedirectUri: String(
@@ -162,17 +168,17 @@ export function getKrogerLocationId(): string {
   return tryGetPublicConfig()?.krogerLocationId ?? "";
 }
 
-export function getOllamaModel(): string {
-  const c = tryGetPublicConfig();
-  const m = c?.llmModel ?? c?.ollamaModel;
-  return (m && m.trim()) || "qwen3:8b";
+/** Featherless model id from deploy-config. */
+export function getLlmModel(): string {
+  const m = tryGetPublicConfig()?.llmModel;
+  return (m && m.trim()) || DEFAULT_LLM_MODEL;
 }
 
-export function getLlmProvider(): "ollama" | "featherless" {
-  return tryGetPublicConfig()?.llmProvider === "featherless" ? "featherless" : "ollama";
+export function getLlmProxyPrefix(): string {
+  return tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api";
 }
 
-/** Origin used for /kroger-api and /ollama-api (Express when split from static UI). */
+/** Origin used for /kroger-api and LLM proxy (Express when split from static UI). */
 export function getAppOrigin(): string {
   return getBackendOrigin();
 }

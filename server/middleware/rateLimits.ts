@@ -25,9 +25,9 @@ export const proxyLimiter = rateLimit({
   message: { error: "Too many proxy requests" },
 });
 
-export const ollamaLimiter = rateLimit({
+export const llmLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_OLLAMA_MAX || "60", 10),
+  max: parseInt(process.env.RATE_LIMIT_LLM_MAX || "60", 10),
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => keyByUserOrIp(req),

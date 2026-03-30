@@ -12,7 +12,7 @@ import {
   authExchangeLimiter,
   feedbackLimiter,
   globalLimiter,
-  ollamaLimiter,
+  llmLimiter,
   proxyLimiter,
 } from "./middleware/rateLimits.js";
 import { llmProxyRouter } from "./proxies/llmProxy.js";
@@ -77,7 +77,7 @@ export function createApp(): express.Express {
   );
 
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, version: "1.0.0", llmProvider: config.llmProvider });
+    res.json({ ok: true, version: "1.0.0", llmBackend: "featherless" });
   });
 
   const jsonBody = express.json({ limit: "100kb" });
@@ -103,14 +103,14 @@ export function createApp(): express.Express {
   api.post("/billing/portal", postBillingPortal);
   app.use("/api", api);
 
-  app.use(
-    "/ollama-api",
+  const llmStack: express.RequestHandler[] = [
     cognitoAuthMiddleware,
     subscriptionGuardMiddleware,
     llmDailyCapMiddleware,
-    ollamaLimiter,
-    llmProxyRouter
-  );
+    llmLimiter,
+    llmProxyRouter,
+  ];
+  app.use("/llm-api", ...llmStack);
 
   app.use(
     "/kroger-api",
@@ -175,10 +175,8 @@ export function logStartupWarnings(): void {
   if (config.subscriptionRequired && (!config.stripeSecretKey || !config.stripePriceId)) {
     logger.warn("SUBSCRIPTION_REQUIRED=true but Stripe env vars are incomplete.");
   }
-  if (config.llmProvider === "featherless" && !config.featherlessApiKey) {
-    logger.warn(
-      "LLM_PROVIDER=featherless (or FEATHERLESS_API_KEY implied) but FEATHERLESS_API_KEY is missing — meal generation will fail."
-    );
+  if (!config.featherlessApiKey) {
+    logger.warn("FEATHERLESS_API_KEY is missing — meal generation will fail.");
   }
   if (config.cookieAppSessionMisconfigured) {
     logger.warn(
@@ -188,12 +186,10 @@ export function logStartupWarnings(): void {
   logger.info(
     {
       trustProxy: config.trustProxy,
-      llm: config.llmProvider,
+      llm: "featherless",
       model: config.llmModel,
       llmDailyCapPerUser: config.llmDailyCapPerUser,
-      ...(config.llmProvider === "ollama"
-        ? { ollamaOrigin: config.ollamaOrigin }
-        : { featherlessApiBase: config.featherlessApiBase }),
+      featherlessApiBase: config.featherlessApiBase,
     },
     "LLM backend"
   );

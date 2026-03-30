@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import { safeClientError } from "../safeError.js";
 
-type OllamaStyleBody = {
+type LlmChatBody = {
   model?: string;
   messages?: unknown;
   stream?: boolean;
@@ -32,18 +32,18 @@ function extractDeltaText(chunk: unknown): string {
 }
 
 /**
- * POST /api/chat — call Featherless OpenAI-compatible API and stream NDJSON chunks the browser client already parses (Ollama-shaped).
+ * POST /api/chat — call Featherless OpenAI-compatible API and stream NDJSON chunks the browser parses (newline JSON with message.content).
  * @see https://featherless.ai/docs/overview
  */
 export async function handleFeatherlessChat(req: Request, res: Response): Promise<void> {
   if (!config.featherlessApiKey) {
     res.status(503).json({
-      error: "LLM_PROVIDER is featherless but FEATHERLESS_API_KEY is not set.",
+      error: "FEATHERLESS_API_KEY is not set — meal generation is disabled.",
     });
     return;
   }
 
-  const body = req.body as OllamaStyleBody;
+  const body = req.body as LlmChatBody;
   const model =
     typeof body.model === "string" && body.model.trim()
       ? body.model.trim()
@@ -62,7 +62,7 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
       : 2048;
 
   const url = `${config.featherlessApiBase}/chat/completions`;
-  const timeoutMs = config.ollamaProxyTimeoutMs;
+  const timeoutMs = config.llmUpstreamTimeoutMs;
 
   try {
     const upstream = await fetch(url, {

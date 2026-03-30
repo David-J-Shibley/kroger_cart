@@ -32,6 +32,7 @@ function clearCognitoSession() {
 }
 
 // client/public-config.ts
+var DEFAULT_LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct";
 var cached = null;
 var backendOriginCache = null;
 var LEGACY_BROWSER_SECRET_KEYS = [
@@ -82,17 +83,16 @@ async function loadDeployConfig() {
     typeof raw.apiOrigin === "string" ? raw.apiOrigin : "",
     origin
   );
-  const llmModel = String(raw.llmModel ?? raw.ollamaModel ?? "qwen3:8b").trim();
-  const prov = String(raw.llmProvider ?? "").toLowerCase();
-  const llmProvider = prov === "featherless" ? "featherless" : "ollama";
+  const llmModel = String(raw.llmModel ?? raw.featherlessModel ?? DEFAULT_LLM_MODEL).trim();
+  const prefixRaw = String(raw.llmProxyPrefix ?? "").trim().replace(/\/$/, "");
+  const llmProxyPrefix = prefixRaw && prefixRaw.startsWith("/") ? prefixRaw : prefixRaw ? "/" + prefixRaw.replace(/^\/+/, "") : "/llm-api";
   const cookieSessionAuth = Boolean(raw.cookieSessionAuth);
   cached = {
     krogerClientId: String(raw.krogerClientId ?? ""),
     krogerRedirectUri: String(raw.krogerRedirectUri ?? ""),
     krogerLocationId: String(raw.krogerLocationId ?? ""),
-    llmProvider,
-    llmModel: llmModel || "qwen3:8b",
-    ollamaModel: llmModel || "qwen3:8b",
+    llmModel: llmModel || DEFAULT_LLM_MODEL,
+    llmProxyPrefix,
     cognitoDomain: normalizeCognitoDomain(String(raw.cognitoDomain ?? "")),
     cognitoClientId: String(raw.cognitoClientId ?? ""),
     cognitoRedirectUri: String(
@@ -131,13 +131,12 @@ function apiUrl(path) {
 function getKrogerLocationId() {
   return tryGetPublicConfig()?.krogerLocationId ?? "";
 }
-function getOllamaModel() {
-  const c = tryGetPublicConfig();
-  const m = c?.llmModel ?? c?.ollamaModel;
-  return m && m.trim() || "qwen3:8b";
+function getLlmModel() {
+  const m = tryGetPublicConfig()?.llmModel;
+  return m && m.trim() || DEFAULT_LLM_MODEL;
 }
-function getLlmProvider() {
-  return tryGetPublicConfig()?.llmProvider === "featherless" ? "featherless" : "ollama";
+function getLlmProxyPrefix() {
+  return tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api";
 }
 function getAppOrigin() {
   return getBackendOrigin();
@@ -262,7 +261,6 @@ async function openBillingPortal() {
 }
 
 // client/config.ts
-var OLLAMA_API_PATH = "/ollama-api";
 var SAVED_LLM_KEY = "krogerCartSavedLLM";
 var SAVED_MEAL_PREFS_KEY = "krogerCartMealPrefs";
 var AUTO_ADD_ENABLED_KEY = "krogerCartAutoAddEnabled";
@@ -1439,30 +1437,6 @@ function initAutoCartPreferencesUi() {
 
 // client/grocery-generation.ts
 var BULK_ADD_DELAY_MS = 400;
-async function assertDeployMatchesApiLlmBackend() {
-  let r;
-  try {
-    r = await fetch(apiUrl("/api/health"), { cache: "no-store" });
-  } catch {
-    return;
-  }
-  if (!r.ok) return;
-  const j = await r.json();
-  const raw = j.llmProvider;
-  if (raw !== "featherless" && raw !== "ollama") return;
-  const server = raw;
-  const client = getLlmProvider();
-  if (server === client) return;
-  const api = getAppOrigin();
-  if (client === "featherless") {
-    throw new Error(
-      "This site is set to Featherless in deploy-config.json, but the API at " + api + ' reports "' + server + '". Set FEATHERLESS_API_KEY on the API server (and LLM_PROVIDER=featherless), restart, and try again. If you intend to use Ollama, set llmProvider to ollama in deploy-config.json.'
-    );
-  }
-  throw new Error(
-    "This site expects Ollama in deploy-config.json, but the API at " + api + ' reports "' + server + '". Set LLM_PROVIDER=ollama and point OLLAMA_ORIGIN at your Ollama instance, or set llmProvider to featherless in deploy-config to match the server.'
-  );
-}
 function getCheckedGroceryLinesFromDom() {
   const list = document.getElementById("generated-list");
   if (!list) return [];
@@ -1645,19 +1619,14 @@ async function generateGroceryList() {
   out.innerHTML = '<pre class="generated-text">Connecting...</pre>';
   const pre = out.querySelector("pre");
   btn.disabled = true;
-  let modelHint = "qwen3:8b";
+  let modelHint = "Qwen/Qwen2.5-7B-Instruct";
   const slowHintId = setTimeout(() => {
     if (pre && pre.textContent === "Connecting...") {
-      if (getLlmProvider() === "featherless") {
-        pre.textContent = "Connecting\u2026\n\nStill waiting? The API host (deploy-config apiOrigin) must have FEATHERLESS_API_KEY; llmProvider in deploy-config alone does not enable Featherless. Also verify LLM_MODEL on the server and your Featherless plan. Docs: https://featherless.ai/docs/overview";
-      } else {
-        pre.textContent = "Connecting\u2026\n\nTaking a while? If you're using Docker, pull the model first:\n  docker exec -it kroger-ollama ollama pull " + modelHint;
-      }
+      pre.textContent = "Connecting\u2026\n\nStill waiting? The API host (deploy-config apiOrigin) needs FEATHERLESS_API_KEY and must route " + (tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api") + " to Express. Check LLM_MODEL on the server and your Featherless plan. Docs: https://featherless.ai/docs/overview";
     }
   }, 15e3);
   try {
     await ensurePublicConfig();
-    await assertDeployMatchesApiLlmBackend();
     const pub = tryGetPublicConfig();
     if (pub?.authRequired) {
       const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
@@ -1669,20 +1638,21 @@ async function generateGroceryList() {
         return;
       }
     }
-    const ollamaModel = getOllamaModel();
-    modelHint = ollamaModel;
+    const llmModel = getLlmModel();
+    const llmPrefix = getLlmProxyPrefix();
+    modelHint = llmModel;
     const prefs = readMealPlanPrefsFromForm();
     persistMealPlanPrefs(prefs);
     const prompt = buildMealPlanPrompt(prefs);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6e5);
     const response = await fetch(
-      getAppOrigin() + OLLAMA_API_PATH + "/api/chat",
+      getAppOrigin() + llmPrefix + "/api/chat",
       mergeAppAuth({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: ollamaModel,
+          model: llmModel,
           messages: [{ role: "user", content: prompt }],
           stream: true,
           options: { num_predict: mealPlanNumPredict(prefs) }
@@ -1744,23 +1714,19 @@ async function generateGroceryList() {
   } catch (err) {
     clearTimeout(slowHintId);
     console.error(err);
-    const model = getOllamaModel();
+    const model = getLlmModel();
     const raw = err instanceof Error ? err.message : String(err);
     let msg;
     if (err instanceof Error && err.name === "AbortError") {
-      msg = getLlmProvider() === "featherless" ? "Request timed out after 10 minutes. Try lowering LLM_MODEL size or simplifying the meal-plan prompt." : "Request timed out after 10 minutes. Try a smaller model or shorter prompt. In Docker, ensure the model is pulled: docker exec -it kroger-ollama ollama pull " + model;
+      msg = "Request timed out after 10 minutes. Try lowering LLM_MODEL size or simplifying the meal-plan prompt.";
     } else {
       msg = "Error: " + raw;
-      const looksLikeOllamaOrNetwork = /ECONNREFUSED|ENOTFOUND|fetch failed|Cannot reach Ollama|502|model|pull/i.test(raw) || /HTTP 5/.test(raw) && !/DYNAMODB|subscription/i.test(raw);
+      const looksLikeLlmOrNetwork = /ECONNREFUSED|ENOTFOUND|fetch failed|502|model|Featherless|featherless/i.test(raw) || /HTTP 5/.test(raw) && !/DYNAMODB|subscription/i.test(raw);
       const isAuthOrBillingGate = /DYNAMODB_USERS_TABLE|subscription is required|SUBSCRIPTION_REQUIRED|Unauthorized|Missing Cognito|Invalid or expired token/i.test(
         raw
       );
-      if (looksLikeOllamaOrNetwork && !isAuthOrBillingGate) {
-        if (getLlmProvider() === "featherless") {
-          msg += "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, and outbound HTTPS to api.featherless.ai is allowed. See https://featherless.ai/docs/overview";
-        } else {
-          msg += "\n\nMake sure Ollama is running and the model '" + model + "' is pulled. In Docker: docker exec -it kroger-ollama ollama pull " + model;
-        }
+      if (looksLikeLlmOrNetwork && !isAuthOrBillingGate) {
+        msg += "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, outbound HTTPS to api.featherless.ai is allowed, and your CDN forwards " + getLlmProxyPrefix() + " to Express. See https://featherless.ai/docs/overview";
       } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
         msg += "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";
       }

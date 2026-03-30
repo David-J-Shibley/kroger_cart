@@ -1,13 +1,12 @@
 import express, { type Request, type Response } from "express";
 import { config } from "../config.js";
 import { handleFeatherlessChat } from "./featherlessChat.js";
-import { proxyOllamaRequest } from "./ollamaForward.js";
 
 /**
- * CORS for /ollama-api. Do not overwrite `Access-Control-Allow-Origin` if `browserCorsMiddleware`
+ * CORS for LLM proxy. Do not overwrite `Access-Control-Allow-Origin` if `browserCorsMiddleware`
  * already set it (Amplify UI + API on another host + cookies) — `*` is invalid with credentials.
  */
-function setOllamaCors(res: Response): void {
+function setLlmCors(res: Response): void {
   if (!res.getHeader("Access-Control-Allow-Origin")) {
     res.set("Access-Control-Allow-Origin", "*");
   }
@@ -19,7 +18,7 @@ export const llmProxyRouter = express.Router();
 
 llmProxyRouter.use((req: Request, res: Response, next: express.NextFunction) => {
   if (req.method === "OPTIONS") {
-    setOllamaCors(res);
+    setLlmCors(res);
     res.sendStatus(204);
     return;
   }
@@ -29,23 +28,14 @@ llmProxyRouter.use((req: Request, res: Response, next: express.NextFunction) => 
 const chatJson = express.json({ limit: config.llmChatJsonLimit });
 
 llmProxyRouter.post("/api/chat", chatJson, async (req: Request, res: Response) => {
-  setOllamaCors(res);
-  if (config.llmProvider === "featherless") {
-    await handleFeatherlessChat(req, res);
-    return;
-  }
-  const buf = Buffer.from(JSON.stringify(req.body ?? {}), "utf8");
-  await proxyOllamaRequest(req, res, buf);
+  setLlmCors(res);
+  await handleFeatherlessChat(req, res);
 });
 
-/** Other Ollama paths (e.g. /api/tags) — raw forward when using Ollama. */
-llmProxyRouter.use(express.raw({ type: "*/*" }), async (req: Request, res: Response) => {
-  setOllamaCors(res);
-  if (config.llmProvider === "featherless") {
-    res.status(404).json({
-      error: "Only POST /ollama-api/api/chat is supported when LLM_PROVIDER=featherless.",
-    });
-    return;
-  }
-  await proxyOllamaRequest(req, res);
+/** Only streaming chat is supported — other paths 404. */
+llmProxyRouter.use((_req: Request, res: Response) => {
+  setLlmCors(res);
+  res.status(404).json({
+    error: "Only POST {prefix}/api/chat is supported for meal generation (prefix is /llm-api by default).",
+  });
 });
