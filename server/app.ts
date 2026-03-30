@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express from "express";
+import express, { type Request } from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { cognitoHostedUiDomainIssue, config, getKrogerCredentials } from "./config.js";
@@ -32,6 +32,17 @@ import { browserCorsMiddleware } from "./middleware/browserCors.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
+
+/** Kroger routes that use only server client id/secret — no Cognito session (e.g. OAuth callback page). */
+function isKrogerServerCredentialPost(req: Request): boolean {
+  if (req.method !== "POST") return false;
+  const pathname = (req.originalUrl ?? "").split("?")[0].replace(/\/+$/, "") || "";
+  return (
+    pathname === "/kroger-api/token" ||
+    pathname === "/kroger-api/oauth-exchange" ||
+    pathname === "/kroger-api/oauth-refresh"
+  );
+}
 
 export function createApp(): express.Express {
   const app = express();
@@ -94,10 +105,19 @@ export function createApp(): express.Express {
 
   app.use(
     "/kroger-api",
+    proxyLimiter,
+    (req, res, next) => {
+      if (isKrogerServerCredentialPost(req)) {
+        void krogerProxyMiddleware(req, res, next);
+        return;
+      }
+      next();
+    },
     cognitoAuthMiddleware,
     subscriptionGuardMiddleware,
-    proxyLimiter,
-    krogerProxyMiddleware
+    (req, res, next) => {
+      void krogerProxyMiddleware(req, res, next);
+    }
   );
 
   app.get("/", (req, res, next) => {
