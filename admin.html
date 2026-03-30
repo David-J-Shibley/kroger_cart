@@ -25,6 +25,125 @@
       font-family: inherit;
     }
     .admin-denied { color: #991b1b; }
+    .admin-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .admin-nav__btn {
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--card);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .admin-nav__btn:hover { border-color: rgba(13, 242, 254, 0.45); }
+    .admin-nav__btn--active {
+      background: linear-gradient(135deg, rgba(28, 203, 126, 0.18) 0%, rgba(13, 242, 254, 0.1) 100%);
+      border-color: rgba(28, 203, 126, 0.4);
+    }
+    .admin-panel[hidden] { display: none !important; }
+    .admin-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .admin-stat {
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: var(--app-primary-light);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .admin-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .admin-toolbar label { font-size: 0.875rem; font-weight: 600; color: var(--text-muted); }
+    .admin-toolbar input[type="search"] {
+      flex: 1;
+      min-width: 160px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+    }
+    .admin-toolbar .btn-secondary,
+    .admin-toolbar button {
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--card);
+    }
+    .admin-toolbar button.admin-btn-primary {
+      background: var(--cta);
+      color: #fff;
+      border-color: transparent;
+    }
+    .admin-toolbar button.admin-btn-primary:hover:not(:disabled) { background: var(--cta-hover); }
+    .admin-toolbar button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .admin-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+    }
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+    }
+    .admin-table th,
+    .admin-table td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .admin-table th {
+      background: var(--app-primary-light);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .admin-table tr:last-child td { border-bottom: none; }
+    .admin-table code { font-size: 0.75rem; word-break: break-all; }
+    .sub-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .sub-pill--active { background: rgba(28, 203, 126, 0.22); color: #0d5c3a; }
+    .sub-pill--none { background: rgba(138, 150, 168, 0.2); color: var(--text-muted); }
+    .sub-pill--past_due { background: rgba(254, 108, 85, 0.2); color: #9a2c1a; }
+    .sub-pill--canceled { background: rgba(19, 27, 56, 0.1); color: var(--text-muted); }
+    .overview-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      margin-top: 12px;
+    }
+    .overview-card {
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      font-size: 0.875rem;
+    }
+    .overview-card strong { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-bottom: 4px; }
   </style>
 </head>
 <body>
@@ -44,11 +163,58 @@
   <main class="main-content">
     <p id="adminGate" class="help-text"></p>
     <div id="adminContent" hidden>
-      <div class="card">
-        <h2 style="margin-top:0">Feedback submissions</h2>
-        <p class="help-text">Newest first (from <code>FEEDBACK_TABLE</code>). Requires DynamoDB and app sign-in.</p>
-        <p id="adminListStatus" class="help-text"></p>
-        <div id="adminList"></div>
+      <nav class="admin-nav" aria-label="Admin sections">
+        <button type="button" class="admin-nav__btn admin-nav__btn--active" data-panel="overview">Overview</button>
+        <button type="button" class="admin-nav__btn" data-panel="users">Users</button>
+        <button type="button" class="admin-nav__btn" data-panel="feedback">Feedback</button>
+      </nav>
+
+      <div id="adminPanelOverview" class="admin-panel">
+        <div class="card">
+          <h2 style="margin-top:0">Overview</h2>
+          <p class="help-text">Environment hints for this deployment (only visible to admins).</p>
+          <div id="adminOverviewBody" class="overview-grid"></div>
+        </div>
+      </div>
+
+      <div id="adminPanelUsers" class="admin-panel" hidden>
+        <div class="card">
+          <h2 style="margin-top:0">Users</h2>
+          <p class="help-text">Rows from <code>DYNAMODB_USERS_TABLE</code> (scan, newest <code>updatedAt</code> first per page). Large tables: use filter + paging.</p>
+          <p id="adminUsersStatus" class="help-text"></p>
+          <div id="adminUsersStats" class="admin-stats" hidden></div>
+          <div class="admin-toolbar">
+            <label for="userFilter">Filter</label>
+            <input type="search" id="userFilter" placeholder="Email, username, user id, Stripe id…" autocomplete="off" />
+            <button type="button" class="admin-btn-primary" id="adminUsersRefresh">Refresh</button>
+            <button type="button" id="adminUsersLoadMore" disabled>Load more</button>
+            <button type="button" id="adminUsersCsv">Download CSV (loaded rows)</button>
+          </div>
+          <div class="admin-table-wrap">
+            <table class="admin-table" aria-label="Users">
+              <thead>
+                <tr>
+                  <th>Email</th>
+                  <th>Username</th>
+                  <th>User ID (sub)</th>
+                  <th>Subscription</th>
+                  <th>Stripe customer</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody id="adminUsersTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="adminPanelFeedback" class="admin-panel" hidden>
+        <div class="card">
+          <h2 style="margin-top:0">Feedback submissions</h2>
+          <p class="help-text">Newest first (from <code>FEEDBACK_TABLE</code>).</p>
+          <p id="adminListStatus" class="help-text"></p>
+          <div id="adminList"></div>
+        </div>
       </div>
     </div>
   </main>
@@ -71,12 +237,170 @@
         .replace(/"/g, "&quot;");
     }
 
+    function subPillClass(status) {
+      var s = String(status || "none");
+      if (s === "active") return "sub-pill sub-pill--active";
+      if (s === "past_due") return "sub-pill sub-pill--past_due";
+      if (s === "canceled") return "sub-pill sub-pill--canceled";
+      return "sub-pill sub-pill--none";
+    }
+
+    var userState = { rows: [], next: null, loading: false };
+    var usersTabLoaded = false;
+    var apiBaseRef = "";
+
+    function setActivePanel(name) {
+      document.querySelectorAll(".admin-nav__btn").forEach(function (b) {
+        b.classList.toggle("admin-nav__btn--active", b.getAttribute("data-panel") === name);
+      });
+      ["overview", "users", "feedback"].forEach(function (p) {
+        var el = document.getElementById("adminPanel" + p.charAt(0).toUpperCase() + p.slice(1));
+        if (el) el.hidden = p !== name;
+      });
+      if (name === "users" && !usersTabLoaded && apiBaseRef) {
+        usersTabLoaded = true;
+        fetchUsers(apiBaseRef, false);
+      }
+    }
+
+    document.querySelectorAll(".admin-nav__btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        setActivePanel(btn.getAttribute("data-panel"));
+      });
+    });
+
+    function renderUserRows() {
+      var tbody = document.getElementById("adminUsersTbody");
+      var q = (document.getElementById("userFilter").value || "").trim().toLowerCase();
+      var rows = userState.rows;
+      if (q) {
+        rows = userState.rows.filter(function (u) {
+          var blob = [
+            u.email,
+            u.username,
+            u.userId,
+            u.stripeCustomerId,
+            u.subscriptionStatus,
+            u.updatedAt,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return blob.indexOf(q) !== -1;
+        });
+      }
+      if (!tbody) return;
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="admin-meta">No users match.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows
+        .map(function (u) {
+          var email = u.email != null ? String(u.email) : "—";
+          var un = u.username != null ? String(u.username) : "—";
+          var uid = u.userId != null ? String(u.userId) : "";
+          var sub = u.subscriptionStatus != null ? String(u.subscriptionStatus) : "none";
+          var stripe = u.stripeCustomerId != null ? String(u.stripeCustomerId) : "—";
+          var upd = u.updatedAt != null ? String(u.updatedAt) : "—";
+          return (
+            "<tr><td>" +
+            escapeHtml(email) +
+            "</td><td>" +
+            escapeHtml(un) +
+            '</td><td><code>' +
+            escapeHtml(uid) +
+            '</code></td><td><span class="' +
+            subPillClass(sub) +
+            '">' +
+            escapeHtml(sub) +
+            "</span></td><td><code>" +
+            escapeHtml(stripe) +
+            "</code></td><td>" +
+            escapeHtml(upd) +
+            "</td></tr>"
+          );
+        })
+        .join("");
+    }
+
+    async function fetchUsers(base, append) {
+      var statusEl = document.getElementById("adminUsersStatus");
+      var moreBtn = document.getElementById("adminUsersLoadMore");
+      if (userState.loading) return;
+      userState.loading = true;
+      if (moreBtn) moreBtn.disabled = true;
+      if (!append && statusEl) statusEl.textContent = "Loading users…";
+      try {
+        var url = base + "/api/admin/users?limit=200";
+        if (append && userState.next) url += "&next=" + encodeURIComponent(userState.next);
+        var r = await fetch(url, { headers: authHeaders() });
+        var j = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          if (statusEl) statusEl.textContent = j.error || "Could not load users (" + r.status + ").";
+          return;
+        }
+        if (!append) userState.rows = [];
+        userState.rows = userState.rows.concat(j.users || []);
+        userState.next = j.next || null;
+        if (statusEl) {
+          statusEl.textContent =
+            userState.rows.length +
+            " user row(s) loaded" +
+            (userState.next ? " — more available." : " — end of table (for this scan).");
+        }
+        var stats = document.getElementById("adminUsersStats");
+        if (stats && j.countsThisPage && !append) {
+          stats.hidden = false;
+          stats.innerHTML = Object.keys(j.countsThisPage)
+            .map(function (k) {
+              return '<span class="admin-stat">' + escapeHtml(k) + ": " + j.countsThisPage[k] + "</span>";
+            })
+            .join("");
+        }
+        if (moreBtn) moreBtn.disabled = !userState.next;
+        renderUserRows();
+      } finally {
+        userState.loading = false;
+      }
+    }
+
+    function downloadUsersCsv() {
+      var q = (document.getElementById("userFilter").value || "").trim().toLowerCase();
+      var rows = userState.rows;
+      if (q) {
+        rows = userState.rows.filter(function (u) {
+          var blob = [u.email, u.username, u.userId, u.stripeCustomerId, u.subscriptionStatus, u.updatedAt]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+          return blob.indexOf(q) !== -1;
+        });
+      }
+      var headers = ["email", "username", "userId", "subscriptionStatus", "stripeCustomerId", "updatedAt"];
+      var lines = [headers.join(",")];
+      rows.forEach(function (u) {
+        lines.push(
+          headers
+            .map(function (h) {
+              var v = u[h] != null ? String(u[h]) : "";
+              if (v.indexOf(",") !== -1 || v.indexOf('"') !== -1) v = '"' + v.replace(/"/g, '""') + '"';
+              return v;
+            })
+            .join(",")
+        );
+      });
+      var blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "grocery-goblin-users.csv";
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
     (async function () {
       var base = await window.krogerCartApiBase();
       var gate = document.getElementById("adminGate");
       var content = document.getElementById("adminContent");
-      var listEl = document.getElementById("adminList");
-      var listStatus = document.getElementById("adminListStatus");
 
       var st = await fetch(base + "/api/admin/status", { headers: authHeaders() });
       if (st.status === 401) {
@@ -92,54 +416,82 @@
       }
       gate.textContent = "";
       content.hidden = false;
+      apiBaseRef = base;
 
+      var ob = document.getElementById("adminOverviewBody");
+      if (ob) {
+        var health = await fetch(base + "/api/health", { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; });
+        ob.innerHTML =
+          '<div class="overview-card"><strong>API health</strong>' +
+          (health.ok ? "OK" : "Unreachable or error") +
+          "</div>" +
+          '<div class="overview-card"><strong>Users table</strong>' +
+          (sj.usersTableConfigured ? "Configured" : "Not configured") +
+          (sj.usersTableName ? "<br><code>" + escapeHtml(sj.usersTableName) + "</code>" : "") +
+          "</div>" +
+          '<div class="overview-card"><strong>Feedback table</strong>' +
+          (sj.feedbackTableConfigured ? "Configured" : "Not configured") +
+          "</div>" +
+          '<div class="overview-card"><strong>DynamoDB region</strong>' +
+          escapeHtml(sj.dynamodbRegion || "—") +
+          "</div>";
+      }
+
+      document.getElementById("adminUsersRefresh").addEventListener("click", function () {
+        userState.next = null;
+        usersTabLoaded = true;
+        fetchUsers(base, false);
+      });
+      document.getElementById("adminUsersLoadMore").addEventListener("click", function () {
+        fetchUsers(base, true);
+      });
+      document.getElementById("userFilter").addEventListener("input", function () {
+        renderUserRows();
+      });
+      document.getElementById("adminUsersCsv").addEventListener("click", downloadUsersCsv);
+
+      var usersStatus = document.getElementById("adminUsersStatus");
+      if (usersStatus) usersStatus.textContent = "Open this tab to load users from DynamoDB.";
+
+      var listEl = document.getElementById("adminList");
+      var listStatus = document.getElementById("adminListStatus");
       listStatus.textContent = "Loading…";
       var fr = await fetch(base + "/api/admin/feedback?limit=100", { headers: authHeaders() });
       var fj = await fr.json().catch(function () { return {}; });
       if (!fr.ok) {
-        if (fr.status === 401) {
-          listStatus.textContent = "Session expired — sign in again.";
-          return;
-        }
-        if (fr.status === 403) {
-          listStatus.textContent = "Forbidden.";
-          return;
-        }
         listStatus.textContent = fj.error || "Could not load feedback (" + fr.status + ").";
-        return;
+      } else {
+        listStatus.textContent =
+          fj.items && fj.items.length ? fj.items.length + " item(s)." : "No rows (empty table or FEEDBACK_TABLE not used yet).";
+        if (fj.items && fj.items.length) {
+          listEl.innerHTML = fj.items
+            .map(function (row) {
+              var id = row.id != null ? String(row.id) : "";
+              var cat = row.category != null ? String(row.category) : "";
+              var at = row.createdAt != null ? String(row.createdAt) : "";
+              var uid = row.userId != null ? String(row.userId) : "";
+              var contact = row.contact != null ? String(row.contact) : "";
+              var msg = row.message != null ? String(row.message) : "";
+              var ua = row.userAgent != null ? String(row.userAgent) : "";
+              return (
+                '<div class="admin-item"><div class="admin-meta"><strong>' +
+                escapeHtml(cat) +
+                "</strong> · " +
+                escapeHtml(at) +
+                " · id " +
+                escapeHtml(id) +
+                (uid ? " · user " + escapeHtml(uid) : "") +
+                (contact ? " · " + escapeHtml(contact) : "") +
+                "</div>" +
+                (ua ? '<div class="admin-meta">UA: ' + escapeHtml(ua.slice(0, 200)) + (ua.length > 200 ? "…" : "") + "</div>" : "") +
+                "<pre>" +
+                escapeHtml(msg) +
+                "</pre></div>"
+              );
+            })
+            .join("");
+        }
       }
-      listStatus.textContent = (fj.items && fj.items.length) ? fj.items.length + " item(s)." : "No rows (empty table or FEEDBACK_TABLE not used yet).";
-      if (!fj.items || !fj.items.length) {
-        listEl.innerHTML = "";
-        return;
-      }
-      listEl.innerHTML = fj.items
-        .map(function (row) {
-          var id = row.id != null ? String(row.id) : "";
-          var cat = row.category != null ? String(row.category) : "";
-          var at = row.createdAt != null ? String(row.createdAt) : "";
-          var uid = row.userId != null ? String(row.userId) : "";
-          var contact = row.contact != null ? String(row.contact) : "";
-          var msg = row.message != null ? String(row.message) : "";
-          var ua = row.userAgent != null ? String(row.userAgent) : "";
-          return (
-            '<div class="admin-item">' +
-            '<div class="admin-meta"><strong>' +
-            escapeHtml(cat) +
-            "</strong> · " +
-            escapeHtml(at) +
-            " · id " +
-            escapeHtml(id) +
-            (uid ? " · user " + escapeHtml(uid) : "") +
-            (contact ? " · " + escapeHtml(contact) : "") +
-            "</div>" +
-            (ua ? '<div class="admin-meta">UA: ' + escapeHtml(ua.slice(0, 200)) + (ua.length > 200 ? "…" : "") + "</div>" : "") +
-            "<pre>" +
-            escapeHtml(msg) +
-            "</pre></div>"
-          );
-        })
-        .join("");
     })();
   </script>
 </body>

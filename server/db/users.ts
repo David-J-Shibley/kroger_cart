@@ -3,6 +3,7 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  ScanCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { config } from "../config.js";
@@ -170,4 +171,45 @@ export async function ensureUserForStripe(
   status: SubscriptionStatus
 ): Promise<void> {
   await updateSubscriptionByStripe(userId, { stripeCustomerId, subscriptionStatus: status });
+}
+
+/** Paginated scan for admin UI (newest `updatedAt` first within each page). */
+export async function scanUsersForAdmin(opts: {
+  limit: number;
+  nextKey?: string;
+}): Promise<{ users: UserRecord[]; nextToken: string | null }> {
+  const d = getDocClient();
+  const table = config.dynamodbUsersTable;
+  if (!d || !table) {
+    throw new Error("users_table_not_configured");
+  }
+
+  let exclusiveStartKey: Record<string, unknown> | undefined;
+  if (opts.nextKey) {
+    try {
+      const raw = Buffer.from(opts.nextKey, "base64url").toString("utf8");
+      exclusiveStartKey = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      exclusiveStartKey = undefined;
+    }
+  }
+
+  const limit = Math.min(Math.max(Math.floor(opts.limit), 1), 500);
+  const out = await d.send(
+    new ScanCommand({
+      TableName: table,
+      Limit: limit,
+      ExclusiveStartKey: exclusiveStartKey,
+    })
+  );
+
+  const users = (out.Items ?? []) as UserRecord[];
+  users.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
+
+  let nextToken: string | null = null;
+  if (out.LastEvaluatedKey && Object.keys(out.LastEvaluatedKey).length) {
+    nextToken = Buffer.from(JSON.stringify(out.LastEvaluatedKey), "utf8").toString("base64url");
+  }
+
+  return { users, nextToken };
 }

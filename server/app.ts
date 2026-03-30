@@ -18,7 +18,7 @@ import { krogerProxyMiddleware } from "./proxies/kroger.js";
 import { publicConfigHandler } from "./routes/publicConfig.js";
 import { stripeWebhookHandler } from "./routes/stripeWebhook.js";
 import { postCognitoToken } from "./routes/cognitoToken.js";
-import { getAdminFeedback, getAdminStatus } from "./routes/admin.js";
+import { getAdminFeedback, getAdminStatus, getAdminUsers } from "./routes/admin.js";
 import { getMe } from "./routes/me.js";
 import {
   postBillingPortal,
@@ -90,6 +90,7 @@ export function createApp(): express.Express {
   api.get("/me", getMe);
   api.get("/admin/status", getAdminStatus);
   api.get("/admin/feedback", getAdminFeedback);
+  api.get("/admin/users", getAdminUsers);
   api.post("/billing/checkout-session", postCheckoutSession);
   api.post("/billing/sync-checkout", postSyncCheckoutSession);
   api.post("/billing/portal", postBillingPortal);
