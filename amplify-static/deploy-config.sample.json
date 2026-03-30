@@ -4,6 +4,11 @@
   "krogerRedirectUri": "https://your-static-host.example.com/kroger-oauth-callback.html",
   "krogerLocationId": "",
   "llmModel": "Qwen/Qwen2.5-7B-Instruct",
+  "llmModels": [
+    "Qwen/Qwen2.5-7B-Instruct",
+    "Qwen/Qwen2.5-3B-Instruct",
+    "meta-llama/Llama-3.2-3B-Instruct"
+  ],
   "llmProxyPrefix": "/llm-api",
   "cognitoDomain": "your-prefix.auth.us-east-1.amazoncognito.com",
   "cognitoClientId": "",

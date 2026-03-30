@@ -23,6 +23,7 @@ import {
   setAllGroceryLineChecks,
 } from "./grocery-generation.js";
 import { initAutoCartPreferencesUi } from "./auto-cart-ui.js";
+import { initLlmModelSelector } from "./llm-model-ui.js";
 import { initMealPlanForm } from "./meal-plan.js";
 import {
   closeProductMetadata,
@@ -142,6 +143,7 @@ async function init(): Promise<void> {
   let cfg: PublicConfig | null = null;
   try {
     cfg = await ensurePublicConfig();
+    initLlmModelSelector();
   } catch (e) {
     console.error("Public config failed:", e);
     const boot = document.getElementById("bootError");

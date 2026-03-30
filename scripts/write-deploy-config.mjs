@@ -19,12 +19,23 @@ const llmProxyPrefix =
       ? "/" + llmProxyRaw.replace(/^\/+/, "")
       : "/llm-api";
 
+const llmModelSingle = (
+  process.env.LLM_MODEL ||
+  process.env.FEATHERLESS_MODEL ||
+  "Qwen/Qwen2.5-7B-Instruct"
+).trim();
+const llmModelsFromEnv = (process.env.DEPLOY_LLM_MODELS || "")
+  .split(/[,;\n]/)
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const j = {
   apiOrigin: (process.env.DEPLOY_API_ORIGIN || "").trim(),
   krogerClientId: (process.env.KROGER_CLIENT_ID || "").trim(),
   krogerRedirectUri: (process.env.DEPLOY_KROGER_REDIRECT_URI || process.env.KROGER_REDIRECT_URI || "").trim(),
   krogerLocationId: (process.env.KROGER_LOCATION_ID || "").trim(),
-  llmModel: (process.env.LLM_MODEL || process.env.FEATHERLESS_MODEL || "Qwen/Qwen2.5-7B-Instruct").trim(),
+  llmModel: llmModelSingle,
+  ...(llmModelsFromEnv.length > 0 ? { llmModels: llmModelsFromEnv } : {}),
   llmProxyPrefix,
   cognitoDomain: (process.env.COGNITO_DOMAIN || "").trim().replace(/^https:\/\//i, "").replace(/\/+$/, ""),
   cognitoClientId: (process.env.COGNITO_CLIENT_ID || "").split(",")[0]?.trim() || "",

@@ -941,6 +941,17 @@ body.feedback-page .main-content {
   color: var(--text-muted);
 }
 
+.meal-plan-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.meal-plan-hint code {
+  font-size: 0.9em;
+}
+
 .meal-meals-fieldset {
   margin: 0;
   padding: 0;

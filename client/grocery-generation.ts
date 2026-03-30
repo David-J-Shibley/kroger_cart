@@ -429,6 +429,12 @@ export async function generateGroceryList(): Promise<void> {
           "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, outbound HTTPS to api.featherless.ai is allowed, and your CDN forwards " +
           getLlmProxyPrefix() +
           " to Express. See https://featherless.ai/docs/overview";
+        if (
+          /capacity|exhausted/i.test(raw) &&
+          (tryGetPublicConfig()?.llmModelOptions.length ?? 0) >= 2
+        ) {
+          msg += '\n\nIf another model is listed under “Meal-plan model”, select it and generate again.';
+        }
       } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
         msg +=
           "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";

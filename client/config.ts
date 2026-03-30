@@ -3,6 +3,8 @@
  * Kroger client ID, redirect URI, store location, and model come from static deploy-config.json.
  */
 export const SAVED_LLM_KEY = "krogerCartSavedLLM";
+/** Last chosen Featherless model id when deploy-config lists multiple `llmModels`. */
+export const SAVED_LLM_MODEL_KEY = "krogerCartLlmModel";
 export const SAVED_MEAL_PREFS_KEY = "krogerCartMealPrefs";
 
 /** Auto-pick a product from Kroger search results instead of opening the chooser. */
