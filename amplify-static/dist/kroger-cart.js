@@ -54,6 +54,12 @@ function clearLegacyBrowserSecretsIfCookieSession(cookieSessionAuth) {
 function pageOrigin() {
   return typeof window !== "undefined" ? window.location.origin : "";
 }
+function normalizeCognitoDomain(raw) {
+  let s = String(raw).trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  const slash = s.indexOf("/");
+  if (slash >= 0) s = s.slice(0, slash);
+  return s;
+}
 async function loadDeployConfig() {
   if (cached) return cached;
   const origin = pageOrigin();
@@ -77,7 +83,7 @@ async function loadDeployConfig() {
     llmProvider,
     llmModel: llmModel || "qwen3:8b",
     ollamaModel: llmModel || "qwen3:8b",
-    cognitoDomain: String(raw.cognitoDomain ?? ""),
+    cognitoDomain: normalizeCognitoDomain(String(raw.cognitoDomain ?? "")),
     cognitoClientId: String(raw.cognitoClientId ?? ""),
     cognitoRedirectUri: String(
       raw.cognitoRedirectUri ?? (origin ? origin + "/auth-callback.html" : "")
@@ -253,6 +259,73 @@ var AUTO_ADD_ENABLED_KEY = "krogerCartAutoAddEnabled";
 var AUTO_ADD_STRATEGY_KEY = "krogerCartAutoAddStrategy";
 
 // client/auto-cart-strategy.ts
+var TOKEN_STOPWORDS = /* @__PURE__ */ new Set([
+  "a",
+  "an",
+  "the",
+  "and",
+  "or",
+  "of",
+  "for",
+  "with",
+  "to",
+  "oz",
+  "lb",
+  "ct",
+  "pack",
+  "each",
+  "per",
+  "loaf",
+  "slices",
+  "slice"
+]);
+var FLAVOR_MISMATCH_TERMS = [
+  "onion",
+  "garlic",
+  "jalapeno",
+  "jalape\xF1o",
+  "habanero",
+  "buffalo",
+  "sriracha",
+  "cinnamon",
+  "raisin",
+  "cranberry",
+  "blueberry",
+  "pumpkin",
+  "marble",
+  "swirl",
+  "pumpernickel",
+  "truffle",
+  "pretzel",
+  "focaccia",
+  "cornbread",
+  "brioche",
+  "challah",
+  "zucchini",
+  "mochi",
+  "ube",
+  "asiago",
+  "pickle",
+  "kimchi",
+  "chocolate",
+  "strawberry",
+  "vanilla",
+  "mocha",
+  "everything",
+  "poppy",
+  "sesame",
+  "potato",
+  "rye",
+  "sourdough",
+  "naan",
+  "pita",
+  "tortilla",
+  "wrap",
+  "mini",
+  "cocktail",
+  "bite",
+  "snack"
+];
 var STRATEGIES = [
   "default",
   "cheapest",
@@ -276,15 +349,66 @@ function haystack(p) {
   }
   return bits.join(" ").toLowerCase();
 }
-function pickCheapest(products2) {
-  const withPrice = products2.filter((p) => p.price > 0);
-  const pool = withPrice.length ? withPrice : products2;
-  return [...pool].sort((a, b) => a.price - b.price || a.name.localeCompare(b.name))[0];
+function tokenizeForMatch(s) {
+  const cleaned = s.toLowerCase().replace(/\d+(\.\d+)?/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
+  return cleaned.split(/\s+/).filter((t) => t.length >= 2 && !TOKEN_STOPWORDS.has(t));
 }
-function pickPremium(products2) {
+function searchLineProductFit(searchLine, productName) {
+  const q = (searchLine || "").trim();
+  const name = (productName || "").toLowerCase();
+  if (!q || !name) return 0;
+  const qt = tokenizeForMatch(q);
+  if (qt.length === 0) return 0;
+  let hits = 0;
+  for (const t of qt) {
+    if (name.includes(t)) hits += 1;
+  }
+  const qCompact = q.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const nCompact = name.replace(/[^a-z0-9]+/g, "");
+  if (qCompact.length >= 3 && nCompact.includes(qCompact)) hits += 2;
+  return hits;
+}
+function flavorMismatchPenalty(searchLine, productName) {
+  const ql = (searchLine || "").toLowerCase();
+  const nl = (productName || "").toLowerCase();
+  let pen = 0;
+  for (const term of FLAVOR_MISMATCH_TERMS) {
+    if (nl.includes(term) && !ql.includes(term)) pen += 2;
+  }
+  return pen;
+}
+function autoPickRankScore(searchLine, p) {
+  const q = (searchLine || "").trim();
+  if (!q) return 0;
+  return searchLineProductFit(q, p.name) * 5 - flavorMismatchPenalty(q, p.name);
+}
+function pickCheapest(products2, searchLine) {
   const withPrice = products2.filter((p) => p.price > 0);
   const pool = withPrice.length ? withPrice : products2;
-  return [...pool].sort((a, b) => b.price - a.price || a.name.localeCompare(b.name))[0];
+  const q = (searchLine || "").trim();
+  if (!q) {
+    return [...pool].sort((a, b) => a.price - b.price || a.name.localeCompare(b.name))[0];
+  }
+  return [...pool].sort((a, b) => {
+    const ra = autoPickRankScore(q, a);
+    const rb = autoPickRankScore(q, b);
+    if (rb !== ra) return rb - ra;
+    return a.price - b.price || a.name.localeCompare(b.name);
+  })[0];
+}
+function pickPremium(products2, searchLine) {
+  const withPrice = products2.filter((p) => p.price > 0);
+  const pool = withPrice.length ? withPrice : products2;
+  const q = (searchLine || "").trim();
+  if (!q) {
+    return [...pool].sort((a, b) => b.price - a.price || a.name.localeCompare(b.name))[0];
+  }
+  return [...pool].sort((a, b) => {
+    const ra = autoPickRankScore(q, a);
+    const rb = autoPickRankScore(q, b);
+    if (rb !== ra) return rb - ra;
+    return b.price - a.price || a.name.localeCompare(b.name);
+  })[0];
 }
 var HEALTH_PATTERNS = [
   { re: /\busda\s+organic\b/i, w: 6 },
@@ -324,32 +448,32 @@ function pickHealthiest(products2) {
   if (scored[0].s > 0) return scored[0].p;
   return products2[0];
 }
-function pickOrganicFirst(products2) {
+function pickOrganicFirst(products2, searchLine) {
   const organic = products2.filter((p) => /\borganic\b/i.test(haystack(p)));
-  if (organic.length) return pickCheapest(organic);
+  if (organic.length) return pickCheapest(organic, searchLine);
   return pickHealthiest(products2);
 }
 var STORE_BRAND_RE = /\b(simple\s+truth|private\s+selection|heritage\s+farm|hemis['']?\s*farms|kroger\s+naturals?|kroger\s+brand)\b/i;
-function pickStoreBrand(products2) {
+function pickStoreBrand(products2, searchLine) {
   const branded = products2.filter((p) => STORE_BRAND_RE.test(haystack(p)));
-  if (branded.length) return pickCheapest(branded);
+  if (branded.length) return pickCheapest(branded, searchLine);
   return products2[0];
 }
-function pickProductByStrategy(products2, strategy) {
+function pickProductByStrategy(products2, strategy, searchLine) {
   if (products2.length <= 1) return products2[0];
   switch (strategy) {
     case "default":
       return products2[0];
     case "cheapest":
-      return pickCheapest(products2);
+      return pickCheapest(products2, searchLine);
     case "premium":
-      return pickPremium(products2);
+      return pickPremium(products2, searchLine);
     case "healthiest":
       return pickHealthiest(products2);
     case "organic_first":
-      return pickOrganicFirst(products2);
+      return pickOrganicFirst(products2, searchLine);
     case "store_brand":
-      return pickStoreBrand(products2);
+      return pickStoreBrand(products2, searchLine);
     default:
       return products2[0];
   }
@@ -359,9 +483,9 @@ function autoStrategyLabel(strategy) {
     case "default":
       return "top search result";
     case "cheapest":
-      return "lowest price among matches";
+      return "lowest price among closer text matches (heuristic)";
     case "premium":
-      return "highest price among matches";
+      return "highest price among closer text matches (heuristic)";
     case "healthiest":
       return "strongest healthy-label signals (organic, whole grain, etc.)";
     case "organic_first":
@@ -983,7 +1107,7 @@ async function searchAndAddToCart(productName, quantity2) {
     }
     if (auto) {
       const strategy = getAutoAddStrategy();
-      const chosen = pickProductByStrategy(products2, strategy);
+      const chosen = pickProductByStrategy(products2, strategy, searchTerm);
       const priceNote = chosen.price > 0 ? " \xB7 $" + chosen.price.toFixed(2) : "";
       return addProductToCart(chosen, quantity2, {
         toastDetail: autoStrategyLabel(strategy) + priceNote

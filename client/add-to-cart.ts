@@ -70,7 +70,7 @@ export async function searchAndAddToCart(productName: string, quantity: number):
     }
     if (auto) {
       const strategy = getAutoAddStrategy();
-      const chosen = pickProductByStrategy(products, strategy);
+      const chosen = pickProductByStrategy(products, strategy, searchTerm);
       const priceNote = chosen.price > 0 ? " · $" + chosen.price.toFixed(2) : "";
       return addProductToCart(chosen, quantity, {
         toastDetail: autoStrategyLabel(strategy) + priceNote,

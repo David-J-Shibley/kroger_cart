@@ -5,7 +5,7 @@
   "krogerLocationId": "",
   "llmProvider": "featherless",
   "llmModel": "Qwen/Qwen2.5-7B-Instruct",
-  "cognitoDomain": "your-pool.auth.us-east-1.amazoncognito.com",
+  "cognitoDomain": "your-prefix.auth.us-east-1.amazoncognito.com",
   "cognitoClientId": "",
   "cognitoRedirectUri": "https://your-static-host.example.com/auth-callback.html",
   "authRequired": true,

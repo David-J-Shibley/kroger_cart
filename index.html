@@ -57,7 +57,7 @@
 
        <div class="card card--auto-cart" id="autoCartCard">
          <h2 class="card__title">Automatic add to cart</h2>
-         <p class="card__lead">When Kroger returns several matches for a grocery line, skip the chooser and add one item using the rule you pick below. (You can still open the chooser by turning this off.)</p>
+         <p class="card__lead">When Kroger returns several matches for a grocery line, skip the chooser and add one item using the rule you pick below. (You can still open the chooser by turning this off.) <strong>Experimental:</strong> auto-pick uses simple text heuristics on Kroger’s titles, not nutrition data or your real preferences—double-check important items.</p>
          <div class="auto-cart-controls">
            <label class="auto-cart-toggle">
              <input type="checkbox" id="autoAddToCartEnabled" />
@@ -74,7 +74,7 @@
                <option value="store_brand">Prefer store brand (Simple Truth, Private Selection, Kroger…)</option>
              </select>
            </div>
-           <p id="autoCartStrategyHint" class="auto-cart-hint">“Healthiest” scores product names and metadata for keywords like organic, non-GMO, and whole grain—it’s a heuristic, not medical advice.</p>
+           <p id="autoCartStrategyHint" class="auto-cart-hint">Cheapest and premium first prefer listings whose titles align with your search line and lightly down-rank obvious flavor variants you didn’t mention (still imperfect). “Healthiest” scores names and metadata for keywords like organic, non-GMO, and whole grain—it’s a heuristic, not medical advice.</p>
          </div>
        </div>
 

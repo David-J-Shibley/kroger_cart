@@ -69,9 +69,16 @@
         window.location.replace("/index.html");
         return;
       }
-      if (!c.cognitoDomain || !c.cognitoClientId) {
+      function normalizeCognitoDomainHost(s) {
+        s = String(s || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+        var i = s.indexOf("/");
+        if (i >= 0) s = s.slice(0, i);
+        return s;
+      }
+      var cognitoHost = normalizeCognitoDomainHost(c.cognitoDomain);
+      if (!cognitoHost || !c.cognitoClientId) {
         document.getElementById("msg").textContent =
-          "Cognito is not configured (COGNITO_DOMAIN / COGNITO_CLIENT_ID on the server).";
+          "Cognito is not configured (set cognitoDomain to the Hosted UI host only, e.g. myapp.auth.us-east-2.amazoncognito.com — no https://).";
         return;
       }
       var scope = encodeURIComponent("openid email phone");
@@ -81,7 +88,7 @@
       sessionStorage.setItem("cognitoOAuthState", state);
       var oauthPath = signupFlow ? "/signup" : "/oauth2/authorize";
       var url =
-        "https://" + c.cognitoDomain + oauthPath +
+        "https://" + cognitoHost + oauthPath +
         "?client_id=" + clientId +
         "&response_type=code" +
         "&scope=" + scope +

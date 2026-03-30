@@ -53,6 +53,14 @@ function pageOrigin(): string {
   return typeof window !== "undefined" ? window.location.origin : "";
 }
 
+/** Match server `normalizeCognitoDomain` — Hosted UI host only (no https://, no path). */
+function normalizeCognitoDomain(raw: string): string {
+  let s = String(raw).trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+  const slash = s.indexOf("/");
+  if (slash >= 0) s = s.slice(0, slash);
+  return s;
+}
+
 /**
  * Loads `/deploy-config.json` from the **page** origin (static site), not the API host.
  * `apiOrigin` in that file points at the Express API when UI and API are split.
@@ -85,7 +93,7 @@ export async function loadDeployConfig(): Promise<PublicConfig> {
     llmProvider,
     llmModel: llmModel || "qwen3:8b",
     ollamaModel: llmModel || "qwen3:8b",
-    cognitoDomain: String(raw.cognitoDomain ?? ""),
+    cognitoDomain: normalizeCognitoDomain(String(raw.cognitoDomain ?? "")),
     cognitoClientId: String(raw.cognitoClientId ?? ""),
     cognitoRedirectUri: String(
       raw.cognitoRedirectUri ?? (origin ? origin + "/auth-callback.html" : "")
