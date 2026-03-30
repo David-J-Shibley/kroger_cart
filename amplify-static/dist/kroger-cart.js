@@ -1212,14 +1212,26 @@ ${notes}
 ` : "";
   const dayWord = days === 1 ? "1 day" : `${days} days`;
   const peopleWord = people === 1 ? "1 person" : `${people} people`;
-  const listMin = Math.min(50, Math.max(15, 18 + people * 2 + Math.floor(days / 2)));
-  const listMax = Math.min(80, Math.max(listMin + 5, 28 + people * 3 + days));
+  const listMin = days <= 1 ? Math.min(30, Math.max(10, 12 + people * 2)) : days === 2 ? Math.min(40, Math.max(14, 15 + people * 2)) : Math.min(50, Math.max(15, 18 + people * 2 + Math.floor(days / 2)));
+  const listMax = days <= 1 ? Math.min(35, Math.max(listMin + 3, 18 + people * 2)) : days === 2 ? Math.min(50, Math.max(listMin + 5, 22 + people * 2 + days)) : Math.min(80, Math.max(listMin + 5, 28 + people * 3 + days));
+  const strictDaysBlock = days === 1 ? `Hard requirements for the day-by-day overview:
+- Cover exactly 1 day only, labeled Day 1.
+- Do not add Day 2, Day 3, or any higher day number. Do not output a full week, a 5-day work week, or extra days for variety.
+
+` : `Hard requirements for the day-by-day overview:
+- Cover exactly ${days} days, labeled Day 1 through Day ${days} only.
+- Do not add extra days beyond Day ${days}, and do not substitute a full week or 5-day work week unless ${days} is 7 or 5 respectively.
+
+`;
+  const recipeExample = days === 1 ? "Day 1 \u2014 Lunch: Turkey sandwich" : "Day 2 \u2014 Lunch: Turkey sandwich (format example only; your plan must stay within Day 1 through Day " + String(days) + " only)";
+  const recipeFormatNote = days === 1 ? "\n" : `
+(The example line shows format only; include recipes only for dishes on Day 1 through Day ${days} in your overview.)
+`;
   const recipeBlock = prefs.includeRecipes ? `
 
 After the day-by-day overview, add a section that starts on its own line with exactly: Recipes:
-Under Recipes, for every dish you listed (each breakfast, lunch, and dinner across all days), include a small block:
-- A line with the day, meal type, and dish name (e.g. "Day 2 \u2014 Lunch: Turkey sandwich").
-- A line "Ingredients (for ${peopleWord} for this dish):" then a short bullet list with amounts for that dish only.
+Under Recipes, for every dish you listed in the day-by-day overview (each planned breakfast, lunch, and dinner), include a small block:
+- A line with the day, meal type, and dish name (e.g. "${recipeExample}").${recipeFormatNote}- A line "Ingredients (for ${peopleWord} for this dish):" then a short bullet list with amounts for that dish only.
 - A line "Steps:" then 3\u20136 numbered, concise steps (practical, not essay-length).
 
 Do not put recipe ingredient bullets under any heading named "Grocery list" or "Shopping list"\u2014those headings are reserved for the consolidated list below.` : `
@@ -1232,7 +1244,9 @@ Keep the day-by-day plan brief: short dish names only\u2014no per-dish ingredien
 - Keep the list concise: about ${listMin}\u2013${listMax} line items total (adjust for household size). No duplicate ingredients.
 - Put the consolidated list ONLY under a line that reads exactly "Grocery list:" or "Shopping list:" (then one shopping item per line, bullet or plain). Nothing before that line belongs in the store list.`;
   const tailNote = prefs.includeRecipes ? `- After Recipes, output the consolidated grocery list as specified.` : `- Be concise: short meal names and list items only.`;
-  return `Create a meal plan for ${dayWord} for a household of ${peopleWord}. ${scopeLine} Start with a clear day-by-day overview (each day: the meals you are including, with specific dish names).${notesBlock}${recipeBlock}
+  return `Create a meal plan for ${dayWord} for a household of ${peopleWord}. ${scopeLine}
+
+${strictDaysBlock}Start with a clear day-by-day overview (each day: the meals you are including, with specific dish names).${notesBlock}${recipeBlock}
 
 ${groceryRules}
 ${tailNote}`;
