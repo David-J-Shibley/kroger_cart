@@ -66,6 +66,9 @@
         if (data.refresh_token) {
           localStorage.setItem("appCognitoRefreshToken", String(data.refresh_token).trim());
         }
+        if (data.id_token) {
+          localStorage.setItem("appCognitoIdToken", String(data.id_token).replace(/\s+/g, "").trim());
+        }
         window.location.replace("/index.html");
       } catch (e) {
         document.getElementById("status").textContent = "Request failed.";

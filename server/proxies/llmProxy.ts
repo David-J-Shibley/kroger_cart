@@ -6,7 +6,7 @@ import { proxyOllamaRequest } from "./ollamaForward.js";
 function setOllamaCors(res: Response): void {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Cognito-Id-Token");
 }
 
 export const llmProxyRouter = express.Router();

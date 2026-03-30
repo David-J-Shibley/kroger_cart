@@ -123,7 +123,11 @@ export async function postBillingPortal(req: Request, res: Response): Promise<vo
   }
   const user = await getUser(userId);
   if (!user?.stripeCustomerId) {
-    res.status(400).json({ error: "No Stripe customer yet — subscribe first." });
+    res.status(400).json({
+      error: "subscribe_first",
+      error_description:
+        "You have not subscribed yet. Click Subscribe in the header to start checkout. Use Billing after you have a plan to update payment or cancel.",
+    });
     return;
   }
   const base = config.appPublicUrl || `${req.protocol}://${req.get("host")}`;

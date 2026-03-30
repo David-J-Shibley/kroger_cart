@@ -30,8 +30,20 @@ export async function openBillingPortal(): Promise<void> {
       apiUrl("/api/billing/portal"),
       mergeAppAuth({ method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
     );
-    const data = (await res.json()) as { url?: string; error?: string };
+    const data = (await res.json()) as {
+      url?: string;
+      error?: string;
+      error_description?: string;
+    };
     if (!res.ok) {
+      if (data.error === "subscribe_first") {
+        alert(
+          typeof data.error_description === "string" && data.error_description.trim()
+            ? data.error_description.trim()
+            : "Click Subscribe in the header to start a subscription. Billing is for managing an existing plan."
+        );
+        return;
+      }
       alert(data.error || "Could not open billing portal (" + res.status + ")");
       return;
     }

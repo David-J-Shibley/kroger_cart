@@ -51,8 +51,10 @@
   <script>
     function authHeaders() {
       var t = localStorage.getItem("appCognitoAccessToken");
+      var id = localStorage.getItem("appCognitoIdToken");
       var h = {};
       if (t) h["Authorization"] = "Bearer " + String(t).replace(/\s+/g, "").trim();
+      if (id) h["X-Cognito-Id-Token"] = String(id).replace(/\s+/g, "").trim();
       return h;
     }
 

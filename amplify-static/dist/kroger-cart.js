@@ -10,6 +10,7 @@ function loadStoredKrogerAppToken() {
 // client/auth-session.ts
 var ACCESS_KEY = "appCognitoAccessToken";
 var REFRESH_KEY = "appCognitoRefreshToken";
+var ID_KEY = "appCognitoIdToken";
 function getCognitoAccessToken() {
   try {
     return localStorage.getItem(ACCESS_KEY);
@@ -17,24 +18,38 @@ function getCognitoAccessToken() {
     return null;
   }
 }
+function getCognitoIdToken() {
+  try {
+    return localStorage.getItem(ID_KEY);
+  } catch {
+    return null;
+  }
+}
 function clearCognitoSession() {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(ID_KEY);
 }
 
 // client/authed-fetch.ts
 function mergeAppAuth(init2 = {}) {
   const token = getCognitoAccessToken();
+  const idToken = getCognitoIdToken();
   const headers = new Headers(init2.headers);
   if (token) {
     headers.set("Authorization", "Bearer " + token.replace(/\s+/g, "").trim());
+  }
+  if (idToken) {
+    headers.set("X-Cognito-Id-Token", idToken.replace(/\s+/g, "").trim());
   }
   return { ...init2, headers };
 }
 function krogerProxyHeaders(krogerBearerToken) {
   const h = {};
   const t = getCognitoAccessToken();
+  const id = getCognitoIdToken();
   if (t) h.Authorization = "Bearer " + t.replace(/\s+/g, "").trim();
+  if (id) h["X-Cognito-Id-Token"] = id.replace(/\s+/g, "").trim();
   const kb = krogerBearerToken.replace(/^Bearer\s+/i, "").replace(/\s+/g, "").trim();
   h["X-Kroger-Authorization"] = "Bearer " + kb;
   return h;
@@ -159,6 +174,12 @@ async function openBillingPortal() {
     );
     const data = await res.json();
     if (!res.ok) {
+      if (data.error === "subscribe_first") {
+        alert(
+          typeof data.error_description === "string" && data.error_description.trim() ? data.error_description.trim() : "Click Subscribe in the header to start a subscription. Billing is for managing an existing plan."
+        );
+        return;
+      }
       alert(data.error || "Could not open billing portal (" + res.status + ")");
       return;
     }
@@ -609,7 +630,7 @@ async function addProductToCart(product, quantity2, options) {
     if (response.status === 403) {
       const err = result;
       if (err.error === "subscription_required") {
-        alert("An active subscription is required. Use Subscribe in the header.");
+        alert("An active subscription is required. Click Subscribe in the header.");
         return false;
       }
       if (err.code === "AUTH-1007") {

@@ -24,7 +24,10 @@ export async function krogerProxyMiddleware(req: Request, res: Response, next: (
   if (req.method === "OPTIONS") {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Kroger-Authorization");
+    res.set(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Kroger-Authorization, X-Cognito-Id-Token"
+    );
     res.sendStatus(204);
     return;
   }

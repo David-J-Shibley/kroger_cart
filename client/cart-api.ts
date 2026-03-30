@@ -54,7 +54,7 @@ export async function addProductToCart(
     if (response.status === 403) {
       const err = result as unknown as { error?: string; code?: string };
       if (err.error === "subscription_required") {
-        alert("An active subscription is required. Use Subscribe in the header.");
+        alert("An active subscription is required. Click Subscribe in the header.");
         return false;
       }
       if (err.code === "AUTH-1007") {

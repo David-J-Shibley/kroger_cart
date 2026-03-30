@@ -1,14 +1,15 @@
 import type { NextFunction, Request, Response } from "express";
+import { CognitoJwtVerifier } from "aws-jwt-verify";
+import { config } from "../config.js";
+import { logger } from "../logger.js";
 
 /** Optional Bearer verification for public routes (e.g. feedback). */
 export type CognitoBearerResolution =
   | { ok: true; sub: string }
   | { ok: false; reason: "missing" | "invalid_config" | "invalid_token" };
-import { CognitoJwtVerifier } from "aws-jwt-verify";
-import { config } from "../config.js";
-import { logger } from "../logger.js";
 
 let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
+let idTokenVerifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 
 function getVerifier() {
   if (!config.cognitoUserPoolId || !config.cognitoClientId) {
@@ -23,6 +24,27 @@ function getVerifier() {
     });
   }
   return verifier;
+}
+
+/** ID tokens carry `email`; access tokens often do not — used only to enrich `req.appUserEmail`. */
+function getIdTokenVerifier() {
+  if (!config.cognitoUserPoolId || !config.cognitoClientId) {
+    return null;
+  }
+  if (!idTokenVerifier) {
+    const clientIds = config.cognitoClientId.split(",").map((s) => s.trim()).filter(Boolean);
+    idTokenVerifier = CognitoJwtVerifier.create({
+      userPoolId: config.cognitoUserPoolId,
+      tokenUse: "id",
+      clientId: clientIds,
+    });
+  }
+  return idTokenVerifier;
+}
+
+function headerString(req: Request, name: string): string {
+  const raw = req.headers[name.toLowerCase()] ?? req.headers[name];
+  return typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] ?? "" : "";
 }
 
 /**
@@ -94,8 +116,23 @@ export async function cognitoAuthMiddleware(
       typeof (payload as { username?: string }).username === "string"
         ? (payload as { username?: string }).username
         : undefined;
-    /** Only the `email` claim — do not use username here (username is stored separately in DynamoDB). */
-    req.appUserEmail = typeof payload.email === "string" ? payload.email : undefined;
+    /** Access token rarely includes `email`; prefer verified ID token below. */
+    let email = typeof payload.email === "string" ? payload.email : undefined;
+
+    const idRaw = headerString(req, "x-cognito-id-token").replace(/^\s*Bearer\s+/i, "").trim();
+    const idV = getIdTokenVerifier();
+    if (idRaw && idV && req.appUserId) {
+      try {
+        const idPayload = await idV.verify(idRaw);
+        if (idPayload.sub === req.appUserId && typeof idPayload.email === "string" && idPayload.email.trim()) {
+          email = idPayload.email.trim();
+        }
+      } catch {
+        /* stale or forged id token — do not fail the request */
+      }
+    }
+
+    req.appUserEmail = email;
     next();
   } catch (e) {
     logger.warn({ err: e }, "Cognito JWT verification failed");

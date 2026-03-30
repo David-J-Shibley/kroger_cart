@@ -44,6 +44,7 @@ export async function subscriptionGuardMiddleware(
 
   res.status(403).json({
     error: "subscription_required",
-    error_description: "An active subscription is required. Open Billing to subscribe.",
+    error_description:
+      "An active subscription is required. Click Subscribe in the header to choose a plan.",
   });
 }

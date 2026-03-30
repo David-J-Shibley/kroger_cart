@@ -25,7 +25,7 @@ export function browserCorsMiddleware(req: Request, res: Response, next: NextFun
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, X-Kroger-Authorization"
+      "Content-Type, Authorization, X-Kroger-Authorization, X-Cognito-Id-Token"
     );
     res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS");
     res.setHeader("Vary", "Origin");
