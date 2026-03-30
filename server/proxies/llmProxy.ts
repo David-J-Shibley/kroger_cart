@@ -17,6 +17,7 @@ function setLlmCors(res: Response): void {
 export const llmProxyRouter = express.Router();
 
 llmProxyRouter.use((req: Request, res: Response, next: express.NextFunction) => {
+  console.log("llmProxyRouter", req.method, req.url);
   if (req.method === "OPTIONS") {
     setLlmCors(res);
     res.sendStatus(204);
