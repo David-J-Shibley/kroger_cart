@@ -155,7 +155,7 @@ export const config = {
   /** Max LLM chat requests per Cognito user per UTC day (0 = unlimited). */
   llmDailyCapPerUser: Math.max(0, parseInt(process.env.LLM_DAILY_CAP_PER_USER || "200", 10) || 0),
   /** express.json limit for POST …/api/chat on the LLM proxy */
-  llmChatJsonLimit: envStr("LLM_CHAT_JSON_LIMIT", "256kb"),
+  llmChatJsonLimit: envStr("LLM_CHAT_JSON_LIMIT", "1mb"),
 
   trustProxy: resolveTrustProxy(),
 

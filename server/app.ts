@@ -77,7 +77,14 @@ export function createApp(): express.Express {
   );
 
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, version: "1.0.0", llmBackend: "featherless" });
+    const key = config.featherlessApiKey?.trim() ?? "";
+    res.json({
+      ok: true,
+      version: "1.0.0",
+      llmBackend: "featherless",
+      /** False means handleFeatherlessChat returns 503 before any upstream call — set FEATHERLESS_API_KEY on this server. */
+      featherlessKeyConfigured: key.length > 0,
+    });
   });
 
   const jsonBody = express.json({ limit: "100kb" });

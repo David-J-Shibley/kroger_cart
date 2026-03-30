@@ -1437,6 +1437,32 @@ function initAutoCartPreferencesUi() {
 
 // client/grocery-generation.ts
 var BULK_ADD_DELAY_MS = 400;
+async function assertApiLlmReadyForFeatherless(llmPrefix) {
+  const healthUrl = apiUrl("/api/health");
+  let res;
+  try {
+    res = await fetch(healthUrl, { cache: "no-store" });
+  } catch {
+    return;
+  }
+  const raw = await res.text();
+  let h;
+  try {
+    h = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      "GET " + healthUrl + " did not return JSON. In deploy-config.json set `apiOrigin` to the base URL of your **Node API** (Express), not only the static site. That host must serve /api/health and POST " + llmPrefix + "/api/chat. If the UI is on www and the API is elsewhere, apiOrigin must point at the API (e.g. your ECS/ALB URL)."
+    );
+  }
+  if (!res.ok || !h.ok) {
+    throw new Error("API health check failed at " + healthUrl + " (HTTP " + res.status + ").");
+  }
+  if (h.featherlessKeyConfigured === false) {
+    throw new Error(
+      "The API server at " + getAppOrigin() + " is reachable but FEATHERLESS_API_KEY is not set there. Upstream Featherless is never called until you add the key to the **same** environment that runs this API (e.g. ECS task definition / container secrets), then redeploy."
+    );
+  }
+}
 function getCheckedGroceryLinesFromDom() {
   const list = document.getElementById("generated-list");
   if (!list) return [];
@@ -1627,6 +1653,8 @@ async function generateGroceryList() {
   }, 15e3);
   try {
     await ensurePublicConfig();
+    const llmPrefixEarly = getLlmProxyPrefix();
+    await assertApiLlmReadyForFeatherless(llmPrefixEarly);
     const pub = tryGetPublicConfig();
     if (pub?.authRequired) {
       const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
@@ -1662,6 +1690,12 @@ async function generateGroceryList() {
     );
     clearTimeout(timeoutId);
     clearTimeout(slowHintId);
+    const respCt = (response.headers.get("content-type") || "").toLowerCase();
+    if (response.ok && respCt.includes("text/html")) {
+      throw new Error(
+        "Meal-plan POST returned HTML (content-type text/html). `apiOrigin` is probably the static website; the request never reached Express. Point apiOrigin at the API host and route " + llmPrefix + "/api/chat to Node."
+      );
+    }
     if (!response.ok) {
       const body = await response.text();
       let detail = "LLM request failed (HTTP " + response.status + ")";

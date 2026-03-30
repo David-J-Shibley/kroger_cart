@@ -78,7 +78,8 @@ function tryParseFullCompletionJson(raw: string): string {
  * @see https://featherless.ai/docs/overview
  */
 export async function handleFeatherlessChat(req: Request, res: Response): Promise<void> {
-  if (!config.featherlessApiKey) {
+  if (!config.featherlessApiKey?.trim()) {
+    logger.warn("featherless_chat_blocked: FEATHERLESS_API_KEY missing — upstream never called");
     res.status(503).json({
       error: "FEATHERLESS_API_KEY is not set — meal generation is disabled.",
     });
@@ -96,6 +97,11 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
     return;
   }
 
+  logger.info(
+    { model, messageCount: messages.length },
+    "featherless_chat_accepted — calling upstream"
+  );
+
   const stream = body.stream !== false;
   const numPredict = body.options?.num_predict;
   const maxTokens =
@@ -106,7 +112,9 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
   const url = `${config.featherlessApiBase}/chat/completions`;
   const timeoutMs = config.llmUpstreamTimeoutMs;
 
+  console.log("trying to fetch", url, timeoutMs);
   try {
+    logger.info({ upstreamBase: config.featherlessApiBase }, "featherless_upstream_fetch_start");
     const upstream = await fetch(url, {
       method: "POST",
       headers: {
@@ -123,6 +131,7 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
       signal: AbortSignal.timeout(timeoutMs),
     });
 
+    console.log("upstream", upstream);
     if (!upstream.ok) {
       const errText = await upstream.text();
       logger.warn(
