@@ -82,10 +82,11 @@ Search can return many products. The modal lists all hits, sortable by price, wi
 | Variable | Purpose |
 |----------|---------|
 | `FEATHERLESS_API_KEY` | Required for meal generation |
-| `LLM_MODEL` / `FEATHERLESS_MODEL` | Model id (default `Qwen/Qwen2.5-7B-Instruct`) |
+| `LLM_MODEL` / `FEATHERLESS_MODEL` | Model id when **no** `deploy-config.json` is readable on the API host (default `Qwen/Qwen2.5-7B-Instruct`) |
+| `DEPLOY_CONFIG_PATH` | Optional absolute or cwd-relative path to `deploy-config.json` for the API process |
 | `FEATHERLESS_API_BASE` | Default `https://api.featherless.ai/v1` |
 | `LLM_PROXY_TIMEOUT_MS` | Upstream timeout (ms), default 600000 |
-| `deploy-config.json` | `apiOrigin`, `llmModel`, optional `llmProxyPrefix`, Kroger/Cognito public fields |
+| `deploy-config.json` | `apiOrigin`, **`llmModels`** (ordered try list), `llmModel`, optional `llmProxyPrefix`, Kroger/Cognito public fields |
 
 ---
 

@@ -19,23 +19,37 @@ const llmProxyPrefix =
       ? "/" + llmProxyRaw.replace(/^\/+/, "")
       : "/llm-api";
 
-const llmModelSingle = (
-  process.env.LLM_MODEL ||
-  process.env.FEATHERLESS_MODEL ||
-  "Qwen/Qwen2.5-7B-Instruct"
-).trim();
-const llmModelsFromEnv = (process.env.DEPLOY_LLM_MODELS || "")
-  .split(/[,;\n]/)
-  .map((s) => s.trim())
-  .filter(Boolean);
-
 const j = {
   apiOrigin: (process.env.DEPLOY_API_ORIGIN || "").trim(),
   krogerClientId: (process.env.KROGER_CLIENT_ID || "").trim(),
   krogerRedirectUri: (process.env.DEPLOY_KROGER_REDIRECT_URI || process.env.KROGER_REDIRECT_URI || "").trim(),
   krogerLocationId: (process.env.KROGER_LOCATION_ID || "").trim(),
-  llmModel: llmModelSingle,
-  ...(llmModelsFromEnv.length > 0 ? { llmModels: llmModelsFromEnv } : {}),
+  llmModel: (
+    process.env.LLM_MODEL ||
+    process.env.FEATHERLESS_MODEL ||
+    "Qwen/Qwen2.5-7B-Instruct"
+  ).trim(),
+  llmModels: (() => {
+    const primary = (
+      process.env.LLM_MODEL ||
+      process.env.FEATHERLESS_MODEL ||
+      "Qwen/Qwen2.5-7B-Instruct"
+    ).trim();
+    const raw = (process.env.DEPLOY_LLM_MODELS || "").trim();
+    if (!raw) return [primary];
+    const parts = raw
+      .split(/[,;\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const seen = new Set();
+    const out = [];
+    for (const p of parts) {
+      if (seen.has(p)) continue;
+      seen.add(p);
+      out.push(p);
+    }
+    return out.length > 0 ? out : [primary];
+  })(),
   llmProxyPrefix,
   cognitoDomain: (process.env.COGNITO_DOMAIN || "").trim().replace(/^https:\/\//i, "").replace(/\/+$/, ""),
   cognitoClientId: (process.env.COGNITO_CLIENT_ID || "").split(",")[0]?.trim() || "",

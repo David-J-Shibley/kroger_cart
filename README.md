@@ -40,8 +40,8 @@ Or `docker compose up -d --build` (see **[DOCKER.md](DOCKER.md)**).
 
 | What | Where |
 |------|--------|
-| Static + browser | `deploy-config.json` (next to `index.html`): `apiOrigin`, Kroger client id, redirects, `llmModel`, optional `llmProxyPrefix` (default `/llm-api`) |
-| Secrets + server | `.env`: `FEATHERLESS_API_KEY`, `LLM_MODEL`, `KROGER_CLIENT_SECRET`, Cognito, Stripe, DynamoDB, etc. |
+| Static + browser | `deploy-config.json` (next to `index.html`): `apiOrigin`, Kroger client id, redirects, **`llmModels`** (meal LLM try order), `llmModel`, optional `llmProxyPrefix` (default `/llm-api`) |
+| Secrets + server | `.env`: `FEATHERLESS_API_KEY`, `LLM_MODEL` (only if API has no deploy-config), `KROGER_CLIENT_SECRET`, Cognito, Stripe, DynamoDB, etc. |
 
 **LLM proxy:** The server exposes **`POST /llm-api/api/chat`**. The client uses `llmProxyPrefix` from `deploy-config.json` (default `/llm-api`); set it if your ingress uses a different path.
 

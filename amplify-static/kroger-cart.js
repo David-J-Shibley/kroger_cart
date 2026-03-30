@@ -33,33 +33,12 @@ function clearCognitoSession() {
 
 // client/config.ts
 var SAVED_LLM_KEY = "krogerCartSavedLLM";
-var SAVED_LLM_MODEL_KEY = "krogerCartLlmModel";
 var SAVED_KROGER_LOCATION_ID_KEY = "krogerCartKrogerLocationId";
 var SAVED_MEAL_PREFS_KEY = "krogerCartMealPrefs";
 var AUTO_ADD_ENABLED_KEY = "krogerCartAutoAddEnabled";
 var AUTO_ADD_STRATEGY_KEY = "krogerCartAutoAddStrategy";
 
 // client/public-config.ts
-var DEFAULT_LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct";
-function parseLlmModelsRaw(raw) {
-  const seen = /* @__PURE__ */ new Set();
-  const add = (s) => {
-    const t = s.trim();
-    if (t) seen.add(t);
-  };
-  if (Array.isArray(raw)) {
-    for (const x of raw) add(String(x));
-  } else if (typeof raw === "string") {
-    for (const part of raw.split(/[,;\n]/)) add(part);
-  }
-  return [...seen];
-}
-function resolveLlmModelOptions(rawList, baseModel) {
-  let list = parseLlmModelsRaw(rawList);
-  if (list.length === 0) return [];
-  if (!list.includes(baseModel)) list = [baseModel, ...list];
-  return list;
-}
 var cached = null;
 var backendOriginCache = null;
 var LEGACY_BROWSER_SECRET_KEYS = [
@@ -110,8 +89,11 @@ async function loadDeployConfig() {
     typeof raw.apiOrigin === "string" ? raw.apiOrigin : "",
     origin
   );
-  const llmModel = String(raw.llmModel ?? raw.featherlessModel ?? DEFAULT_LLM_MODEL).trim() || DEFAULT_LLM_MODEL;
-  const llmModelOptions = resolveLlmModelOptions(raw.llmModels ?? raw.llmModelList, llmModel);
+  const llmModelsList = Array.isArray(raw.llmModels) ? raw.llmModels.map((x) => String(x).trim()).filter(Boolean) : [];
+  let llmModel = String(raw.llmModel ?? raw.featherlessModel ?? "").trim();
+  if (!llmModel && llmModelsList.length > 0) {
+    llmModel = llmModelsList[0];
+  }
   const prefixRaw = String(raw.llmProxyPrefix ?? "").trim().replace(/\/$/, "");
   const llmProxyPrefix = prefixRaw && prefixRaw.startsWith("/") ? prefixRaw : prefixRaw ? "/" + prefixRaw.replace(/^\/+/, "") : "/llm-api";
   const cookieSessionAuth = Boolean(raw.cookieSessionAuth);
@@ -120,7 +102,6 @@ async function loadDeployConfig() {
     krogerRedirectUri: String(raw.krogerRedirectUri ?? ""),
     krogerLocationId: String(raw.krogerLocationId ?? ""),
     llmModel,
-    llmModelOptions,
     llmProxyPrefix,
     cognitoDomain: normalizeCognitoDomain(String(raw.cognitoDomain ?? "")),
     cognitoClientId: String(raw.cognitoClientId ?? ""),
@@ -164,30 +145,6 @@ function getKrogerLocationId() {
   } catch {
   }
   return (tryGetPublicConfig()?.krogerLocationId ?? "").trim();
-}
-function getLlmModel() {
-  const cfg = tryGetPublicConfig();
-  const fallback = cfg?.llmModel && cfg.llmModel.trim() || DEFAULT_LLM_MODEL;
-  const options = cfg?.llmModelOptions ?? [];
-  if (typeof document !== "undefined") {
-    const sel = document.getElementById("llmModelSelect");
-    if (sel instanceof HTMLSelectElement && sel.options.length > 0) {
-      const v = sel.value.trim();
-      if (v && (options.length === 0 || options.includes(v))) return v;
-    }
-  }
-  if (options.length >= 2) {
-    try {
-      const saved = localStorage.getItem(SAVED_LLM_MODEL_KEY);
-      if (saved && options.includes(saved)) return saved;
-    } catch {
-    }
-  }
-  if (options.length >= 1) {
-    if (options.includes(fallback)) return fallback;
-    return options[0];
-  }
-  return fallback;
 }
 function getLlmProxyPrefix() {
   return tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api";
@@ -1693,10 +1650,9 @@ async function generateGroceryList() {
   out.innerHTML = '<pre class="generated-text">Connecting...</pre>';
   const pre = out.querySelector("pre");
   btn.disabled = true;
-  let modelHint = "Qwen/Qwen2.5-7B-Instruct";
   const slowHintId = setTimeout(() => {
     if (pre && pre.textContent === "Connecting...") {
-      pre.textContent = "Connecting\u2026\n\nStill waiting? The API host (deploy-config apiOrigin) needs FEATHERLESS_API_KEY and must route " + (tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api") + " to Express. Check LLM_MODEL on the server and your Featherless plan. Docs: https://featherless.ai/docs/overview";
+      pre.textContent = "Connecting\u2026\n\nStill waiting? The API host (deploy-config apiOrigin) needs FEATHERLESS_API_KEY and must route " + (tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api") + " to Express. On the API host, deploy-config.json should list llmModels (try order); without that file use LLM_MODEL. Docs: https://featherless.ai/docs/overview";
     }
   }, 15e3);
   try {
@@ -1714,9 +1670,7 @@ async function generateGroceryList() {
         return;
       }
     }
-    const llmModel = getLlmModel();
     const llmPrefix = getLlmProxyPrefix();
-    modelHint = llmModel;
     const prefs = readMealPlanPrefsFromForm();
     persistMealPlanPrefs(prefs);
     const prompt = buildMealPlanPrompt(prefs);
@@ -1728,7 +1682,6 @@ async function generateGroceryList() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: llmModel,
           messages: [{ role: "user", content: prompt }],
           stream: true,
           options: { num_predict: mealPlanNumPredict(prefs) }
@@ -1807,11 +1760,10 @@ async function generateGroceryList() {
   } catch (err) {
     clearTimeout(slowHintId);
     console.error(err);
-    const model = getLlmModel();
     const raw = err instanceof Error ? err.message : String(err);
     let msg;
     if (err instanceof Error && err.name === "AbortError") {
-      msg = "Request timed out after 10 minutes. Try lowering LLM_MODEL size or simplifying the meal-plan prompt.";
+      msg = "Request timed out after 10 minutes. Try simplifying the meal-plan prompt or ask your admin to adjust deploy-config llmModels (or LLM_MODEL) on the API host.";
     } else {
       msg = "Error: " + raw;
       const looksLikeLlmOrNetwork = /ECONNREFUSED|ENOTFOUND|fetch failed|502|model|Featherless|featherless/i.test(raw) || /HTTP 5/.test(raw) && !/DYNAMODB|subscription/i.test(raw);
@@ -1819,10 +1771,7 @@ async function generateGroceryList() {
         raw
       );
       if (looksLikeLlmOrNetwork && !isAuthOrBillingGate) {
-        msg += "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, outbound HTTPS to api.featherless.ai is allowed, and your CDN forwards " + getLlmProxyPrefix() + " to Express. See https://featherless.ai/docs/overview";
-        if (/capacity|exhausted/i.test(raw) && (tryGetPublicConfig()?.llmModelOptions.length ?? 0) >= 2) {
-          msg += "\n\nIf another model is listed under \u201CMeal-plan model\u201D, select it and generate again.";
-        }
+        msg += "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, deploy-config llmModels (or LLM_MODEL) lists models your plan can run, outbound HTTPS to api.featherless.ai is allowed, and your CDN forwards " + getLlmProxyPrefix() + " to Express. See https://featherless.ai/docs/overview";
       } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
         msg += "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";
       }
@@ -1939,77 +1888,6 @@ function initKrogerLocationUi() {
   });
 }
 
-// client/llm-model-ui.ts
-function mealPlanOptionsEl() {
-  return document.getElementById("mealPlanOptions");
-}
-function ensureLlmModelRowDom() {
-  const container = mealPlanOptionsEl();
-  if (!container) return null;
-  let row = document.getElementById("llmModelRow");
-  let sel = document.getElementById("llmModelSelect");
-  if (row && sel) {
-    return { row, sel };
-  }
-  if (row && !sel) {
-    row.remove();
-    row = null;
-  }
-  row = document.createElement("div");
-  row.className = "meal-plan-row meal-plan-row--full";
-  row.id = "llmModelRow";
-  const label = document.createElement("label");
-  label.setAttribute("for", "llmModelSelect");
-  label.textContent = "Meal-plan model";
-  sel = document.createElement("select");
-  sel.id = "llmModelSelect";
-  sel.setAttribute("aria-describedby", "llmModelHint");
-  const hint = document.createElement("p");
-  hint.id = "llmModelHint";
-  hint.className = "meal-plan-hint";
-  hint.textContent = "Choose another model if you see a capacity error.";
-  row.appendChild(label);
-  row.appendChild(sel);
-  row.appendChild(hint);
-  container.appendChild(row);
-  return { row, sel };
-}
-function initLlmModelSelector() {
-  const cfg = tryGetPublicConfig();
-  if (!cfg) return;
-  const options = cfg.llmModelOptions;
-  const dom = ensureLlmModelRowDom();
-  if (!dom) return;
-  const { row, sel } = dom;
-  if (options.length < 2) {
-    row.hidden = true;
-    sel.replaceChildren();
-    return;
-  }
-  row.hidden = false;
-  sel.replaceChildren();
-  for (const id of options) {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = id;
-    sel.appendChild(opt);
-  }
-  let initial = cfg.llmModel;
-  try {
-    const saved = localStorage.getItem(SAVED_LLM_MODEL_KEY);
-    if (saved && options.includes(saved)) initial = saved;
-  } catch {
-  }
-  if (!options.includes(initial)) initial = options[0];
-  sel.value = initial;
-  sel.addEventListener("change", () => {
-    try {
-      localStorage.setItem(SAVED_LLM_MODEL_KEY, sel.value);
-    } catch {
-    }
-  });
-}
-
 // client/kroger-cart.ts
 async function isAppSignedIn() {
   const cfg = tryGetPublicConfig();
@@ -2107,7 +1985,6 @@ async function init() {
   let cfg = null;
   try {
     cfg = await ensurePublicConfig();
-    initLlmModelSelector();
   } catch (e) {
     console.error("Public config failed:", e);
     const boot = document.getElementById("bootError");

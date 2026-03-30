@@ -5,7 +5,6 @@ import {
   apiUrl,
   ensurePublicConfig,
   getAppOrigin,
-  getLlmModel,
   getLlmProxyPrefix,
   tryGetPublicConfig,
 } from "./public-config.js";
@@ -288,13 +287,12 @@ export async function generateGroceryList(): Promise<void> {
   out.innerHTML = '<pre class="generated-text">Connecting...</pre>';
   const pre = out.querySelector("pre");
   (btn as HTMLButtonElement).disabled = true;
-  let modelHint = "Qwen/Qwen2.5-7B-Instruct";
   const slowHintId = setTimeout(() => {
     if (pre && pre.textContent === "Connecting...") {
       pre.textContent =
         "Connecting…\n\nStill waiting? The API host (deploy-config apiOrigin) needs FEATHERLESS_API_KEY and must route " +
         (tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api") +
-        " to Express. Check LLM_MODEL on the server and your Featherless plan. Docs: https://featherless.ai/docs/overview";
+        " to Express. On the API host, deploy-config.json should list llmModels (try order); without that file use LLM_MODEL. Docs: https://featherless.ai/docs/overview";
     }
   }, 15000);
   try {
@@ -312,9 +310,7 @@ export async function generateGroceryList(): Promise<void> {
         return;
       }
     }
-    const llmModel = getLlmModel();
     const llmPrefix = getLlmProxyPrefix();
-    modelHint = llmModel;
     const prefs = readMealPlanPrefsFromForm();
     persistMealPlanPrefs(prefs);
     const prompt = buildMealPlanPrompt(prefs);
@@ -326,7 +322,6 @@ export async function generateGroceryList(): Promise<void> {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: llmModel,
           messages: [{ role: "user", content: prompt }],
           stream: true,
           options: { num_predict: mealPlanNumPredict(prefs) },
@@ -409,12 +404,11 @@ export async function generateGroceryList(): Promise<void> {
   } catch (err) {
     clearTimeout(slowHintId);
     console.error(err);
-    const model = getLlmModel();
     const raw = err instanceof Error ? err.message : String(err);
     let msg: string;
     if (err instanceof Error && err.name === "AbortError") {
       msg =
-        "Request timed out after 10 minutes. Try lowering LLM_MODEL size or simplifying the meal-plan prompt.";
+        "Request timed out after 10 minutes. Try simplifying the meal-plan prompt or ask your admin to adjust deploy-config llmModels (or LLM_MODEL) on the API host.";
     } else {
       msg = "Error: " + raw;
       const looksLikeLlmOrNetwork =
@@ -426,15 +420,9 @@ export async function generateGroceryList(): Promise<void> {
         );
       if (looksLikeLlmOrNetwork && !isAuthOrBillingGate) {
         msg +=
-          "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, LLM_MODEL matches a model you can run, outbound HTTPS to api.featherless.ai is allowed, and your CDN forwards " +
+          "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, deploy-config llmModels (or LLM_MODEL) lists models your plan can run, outbound HTTPS to api.featherless.ai is allowed, and your CDN forwards " +
           getLlmProxyPrefix() +
           " to Express. See https://featherless.ai/docs/overview";
-        if (
-          /capacity|exhausted/i.test(raw) &&
-          (tryGetPublicConfig()?.llmModelOptions.length ?? 0) >= 2
-        ) {
-          msg += '\n\nIf another model is listed under “Meal-plan model”, select it and generate again.';
-        }
       } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
         msg +=
           "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";

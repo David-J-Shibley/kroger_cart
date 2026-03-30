@@ -1,42 +1,16 @@
 /** Public deployment settings from static `deploy-config.json` (same origin as the HTML). No /api/public-config. */
 
-import { SAVED_KROGER_LOCATION_ID_KEY, SAVED_LLM_MODEL_KEY } from "./config.js";
-
-const DEFAULT_LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct";
-
-function parseLlmModelsRaw(raw: unknown): string[] {
-  const seen = new Set<string>();
-  const add = (s: string): void => {
-    const t = s.trim();
-    if (t) seen.add(t);
-  };
-  if (Array.isArray(raw)) {
-    for (const x of raw) add(String(x));
-  } else if (typeof raw === "string") {
-    for (const part of raw.split(/[,;\n]/)) add(part);
-  }
-  return [...seen];
-}
-
-/** Merge deploy `llmModels` with default `llmModel`; empty raw → no multi-model UI. */
-function resolveLlmModelOptions(rawList: unknown, baseModel: string): string[] {
-  let list = parseLlmModelsRaw(rawList);
-  if (list.length === 0) return [];
-  if (!list.includes(baseModel)) list = [baseModel, ...list];
-  return list;
-}
+import { SAVED_KROGER_LOCATION_ID_KEY } from "./config.js";
 
 export interface PublicConfig {
   krogerClientId: string;
   krogerRedirectUri: string;
   krogerLocationId: string;
-  /** Featherless / HuggingFace-style model id (must exist on your Featherless plan). */
-  llmModel: string;
   /**
-   * When two or more ids are present (from optional `llmModels` in deploy-config), the UI shows a model dropdown
-   * so users can switch if one model hits capacity. Omitted or empty → single fixed `llmModel`.
+   * Informational only — meal-plan models are chosen on the API server from deploy-config `llmModels` (same file on the API host) or `LLM_MODEL` when no deploy file.
+   * Not sent to `/api/chat`.
    */
-  llmModelOptions: string[];
+  llmModel: string;
   /**
    * Path prefix for meal LLM POST …/api/chat. Default `/llm-api`.
    * Use a different prefix only if your ingress still points at an older path (server may mount both).
@@ -129,9 +103,13 @@ export async function loadDeployConfig(): Promise<PublicConfig> {
     origin
   );
 
-  const llmModel =
-    String(raw.llmModel ?? raw.featherlessModel ?? DEFAULT_LLM_MODEL).trim() || DEFAULT_LLM_MODEL;
-  const llmModelOptions = resolveLlmModelOptions(raw.llmModels ?? raw.llmModelList, llmModel);
+  const llmModelsList = Array.isArray(raw.llmModels)
+    ? raw.llmModels.map((x) => String(x).trim()).filter(Boolean)
+    : [];
+  let llmModel = String(raw.llmModel ?? raw.featherlessModel ?? "").trim();
+  if (!llmModel && llmModelsList.length > 0) {
+    llmModel = llmModelsList[0];
+  }
   const prefixRaw = String(raw.llmProxyPrefix ?? "").trim().replace(/\/$/, "");
   const llmProxyPrefix =
     prefixRaw && prefixRaw.startsWith("/")
@@ -145,7 +123,6 @@ export async function loadDeployConfig(): Promise<PublicConfig> {
     krogerRedirectUri: String(raw.krogerRedirectUri ?? ""),
     krogerLocationId: String(raw.krogerLocationId ?? ""),
     llmModel,
-    llmModelOptions,
     llmProxyPrefix,
     cognitoDomain: normalizeCognitoDomain(String(raw.cognitoDomain ?? "")),
     cognitoClientId: String(raw.cognitoClientId ?? ""),
@@ -204,37 +181,6 @@ export function getKrogerLocationId(): string {
     /* storage blocked */
   }
   return (tryGetPublicConfig()?.krogerLocationId ?? "").trim();
-}
-
-/** Featherless model id: dropdown selection if present, else saved choice, else deploy-config default. */
-export function getLlmModel(): string {
-  const cfg = tryGetPublicConfig();
-  const fallback = (cfg?.llmModel && cfg.llmModel.trim()) || DEFAULT_LLM_MODEL;
-  const options = cfg?.llmModelOptions ?? [];
-
-  if (typeof document !== "undefined") {
-    const sel = document.getElementById("llmModelSelect");
-    if (sel instanceof HTMLSelectElement && sel.options.length > 0) {
-      const v = sel.value.trim();
-      if (v && (options.length === 0 || options.includes(v))) return v;
-    }
-  }
-
-  if (options.length >= 2) {
-    try {
-      const saved = localStorage.getItem(SAVED_LLM_MODEL_KEY);
-      if (saved && options.includes(saved)) return saved;
-    } catch {
-      /* storage blocked */
-    }
-  }
-
-  if (options.length >= 1) {
-    if (options.includes(fallback)) return fallback;
-    return options[0];
-  }
-
-  return fallback;
 }
 
 export function getLlmProxyPrefix(): string {

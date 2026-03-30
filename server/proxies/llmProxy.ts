@@ -29,7 +29,6 @@ const chatJson = express.json({ limit: config.llmChatJsonLimit });
 
 llmProxyRouter.post("/api/chat", chatJson, async (req: Request, res: Response) => {
   setLlmCors(res);
-  console.log("handleFeatherlessChat", req.method, req.url);
   await handleFeatherlessChat(req, res);
 });
 

@@ -1,6 +1,9 @@
 /**
  * Server environment (see .env.example).
  */
+import fs from "node:fs";
+import path from "node:path";
+
 export function envBool(name: string, defaultValue: boolean): boolean {
   const v = process.env[name];
   if (v == null || v === "") return defaultValue;
@@ -59,8 +62,64 @@ function resolveAuthRequired(): boolean {
 
 const featherlessApiKey = envStr("FEATHERLESS_API_KEY");
 
-const llmModelResolved =
-  envStr("LLM_MODEL") || envStr("FEATHERLESS_MODEL") || "Qwen/Qwen2.5-7B-Instruct";
+const DEFAULT_LLM_MODEL = "Qwen/Qwen2.5-7B-Instruct";
+
+function tryLoadDeployConfigJson(): Record<string, unknown> | null {
+  const rawPath = envStr("DEPLOY_CONFIG_PATH").trim();
+  const resolved = rawPath
+    ? path.isAbsolute(rawPath)
+      ? rawPath
+      : path.resolve(process.cwd(), rawPath)
+    : path.join(process.cwd(), "deploy-config.json");
+  try {
+    if (!fs.existsSync(resolved)) return null;
+    const txt = fs.readFileSync(resolved, "utf8");
+    const j = JSON.parse(txt) as unknown;
+    return j != null && typeof j === "object" && !Array.isArray(j)
+      ? (j as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function dedupeLlmModelChain(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of ids) {
+    const t = s.trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
+}
+
+/** Ordered ids from `deploy-config.json` (`llmModels` or single `llmModel`); null if file missing or no LLM fields set. */
+function llmChainFromDeployRecord(rec: Record<string, unknown> | null): string[] | null {
+  if (!rec) return null;
+  const rawList = rec.llmModels;
+  if (Array.isArray(rawList) && rawList.length > 0) {
+    const ids = rawList.map((x) => String(x).trim()).filter(Boolean);
+    const d = dedupeLlmModelChain(ids);
+    return d.length > 0 ? d : null;
+  }
+  const single = String(rec.llmModel ?? rec.featherlessModel ?? "").trim();
+  if (single) return [single];
+  return null;
+}
+
+const deployConfigForLlm = tryLoadDeployConfigJson();
+const llmModelsFromDeploy = llmChainFromDeployRecord(deployConfigForLlm);
+
+const llmModelsToTry = (() => {
+  if (llmModelsFromDeploy && llmModelsFromDeploy.length > 0) return llmModelsFromDeploy;
+  const fromEnv = (envStr("LLM_MODEL") || envStr("FEATHERLESS_MODEL")).trim();
+  if (fromEnv) return [fromEnv];
+  return [DEFAULT_LLM_MODEL];
+})();
+
+const llmModelResolved = llmModelsToTry[0] || DEFAULT_LLM_MODEL;
 
 /** Trust `X-Forwarded-For` / `req.ip` behind reverse proxies. `1` = one hop (typical ALB). `true` = all hops. */
 function resolveTrustProxy(): boolean | number {
@@ -84,8 +143,10 @@ export const config = {
     /\/+$/,
     ""
   ),
-  /** HuggingFace-style model id for Featherless OpenAI-compatible API. */
-  llmModel: llmModelResolved.trim(),
+  /** HuggingFace-style model id for Featherless (first in `llmModelsToTry`). */
+  llmModel: llmModelResolved,
+  /** Ordered list: try first model, then each fallback on retryable upstream failures (capacity, 503, etc.). */
+  llmModelsToTry,
   llmUpstreamTimeoutMs,
 
   /** Cognito JWT on protected routes; browser redirect to /auth.html when true. */

@@ -195,6 +195,7 @@ export function logStartupWarnings(): void {
       trustProxy: config.trustProxy,
       llm: "featherless",
       model: config.llmModel,
+      llmModelsToTry: config.llmModelsToTry,
       llmDailyCapPerUser: config.llmDailyCapPerUser,
       featherlessApiBase: config.featherlessApiBase,
     },
