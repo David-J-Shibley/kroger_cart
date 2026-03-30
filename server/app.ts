@@ -17,6 +17,8 @@ import { llmProxyRouter } from "./proxies/llmProxy.js";
 import { krogerProxyMiddleware } from "./proxies/kroger.js";
 import { publicConfigHandler } from "./routes/publicConfig.js";
 import { stripeWebhookHandler } from "./routes/stripeWebhook.js";
+import { deleteAppSessionHandler } from "./routes/appSession.js";
+import { deleteKrogerSessionHandler } from "./routes/krogerSessionRoute.js";
 import { postCognitoToken } from "./routes/cognitoToken.js";
 import { getAdminFeedback, getAdminStatus, getAdminUsers } from "./routes/admin.js";
 import { getMe } from "./routes/me.js";
@@ -33,15 +35,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, "..");
 
-/** Kroger routes that use only server client id/secret — no Cognito session (e.g. OAuth callback page). */
+/** Client-credentials token only — no user session. OAuth exchange/refresh require Cognito (Bearer or cookie). */
 function isKrogerServerCredentialPost(req: Request): boolean {
   if (req.method !== "POST") return false;
   const pathname = (req.originalUrl ?? "").split("?")[0].replace(/\/+$/, "") || "";
-  return (
-    pathname === "/kroger-api/token" ||
-    pathname === "/kroger-api/oauth-exchange" ||
-    pathname === "/kroger-api/oauth-refresh"
-  );
+  return pathname === "/kroger-api/token";
 }
 
 export function createApp(): express.Express {
@@ -79,6 +77,7 @@ export function createApp(): express.Express {
   const jsonBody = express.json({ limit: "100kb" });
 
   app.post("/api/auth/cognito-token", authExchangeLimiter, jsonBody, postCognitoToken);
+  app.delete("/api/auth/session", deleteAppSessionHandler);
 
   app.use(globalLimiter);
 
@@ -88,6 +87,7 @@ export function createApp(): express.Express {
   api.use(jsonBody);
   api.use(cognitoAuthMiddleware);
   api.get("/me", getMe);
+  api.delete("/kroger-session", deleteKrogerSessionHandler);
   api.get("/admin/status", getAdminStatus);
   api.get("/admin/feedback", getAdminFeedback);
   api.get("/admin/users", getAdminUsers);
@@ -170,6 +170,11 @@ export function logStartupWarnings(): void {
   if (config.llmProvider === "featherless" && !config.featherlessApiKey) {
     logger.warn(
       "LLM_PROVIDER=featherless (or FEATHERLESS_API_KEY implied) but FEATHERLESS_API_KEY is missing — meal generation will fail."
+    );
+  }
+  if (config.cookieAppSessionMisconfigured) {
+    logger.warn(
+      "COOKIE_APP_SESSION=true but DYNAMODB_SESSIONS_TABLE and/or APP_SESSION_SECRET (min 16 chars) are missing — cookie sessions disabled; falling back to token JSON."
     );
   }
   logger.info(

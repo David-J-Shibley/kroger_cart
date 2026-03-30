@@ -2,8 +2,14 @@ import { autoStrategyLabel, pickProductByStrategy } from "./auto-cart-strategy.j
 import { getAutoAddEnabled, getAutoAddStrategy } from "./auto-cart-prefs.js";
 import { addProductToCart } from "./cart-api.js";
 import { shortProductName } from "./html-utils.js";
-import { getAccessToken, getKrogerUserTokenOrRefresh } from "./kroger-tokens.js";
+import {
+  getAccessToken,
+  getKrogerAccountLinked,
+  getKrogerUserTokenOrRefresh,
+  refreshKrogerLinkedFromApi,
+} from "./kroger-tokens.js";
 import { searchKrogerProducts } from "./kroger-products.js";
+import { ensurePublicConfig, tryGetPublicConfig } from "./public-config.js";
 import { showProductPicker } from "./product-picker.js";
 
 const SEARCH_LIMIT_MANUAL = 10;
@@ -29,12 +35,24 @@ export async function searchAndAddToCart(productName: string, quantity: number):
     return false;
   }
 
-  const userToken = await getKrogerUserTokenOrRefresh();
-  if (!userToken) {
-    alert(
-      'Please sign in with Kroger first (click "Sign in with Kroger" above) to add items to your cart.'
-    );
-    return false;
+  await ensurePublicConfig();
+  const cookieMode = Boolean(tryGetPublicConfig()?.cookieSessionAuth);
+  if (cookieMode) {
+    await refreshKrogerLinkedFromApi();
+    if (!getKrogerAccountLinked()) {
+      alert(
+        'Please sign in with Kroger first (click "Sign in with Kroger" above) to add items to your cart.'
+      );
+      return false;
+    }
+  } else {
+    const userToken = await getKrogerUserTokenOrRefresh();
+    if (!userToken) {
+      alert(
+        'Please sign in with Kroger first (click "Sign in with Kroger" above) to add items to your cart.'
+      );
+      return false;
+    }
   }
 
   try {

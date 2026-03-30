@@ -1,7 +1,11 @@
 import { showAddToCartToast } from "./cart-feedback.js";
 import { krogerProxyHeaders } from "./authed-fetch.js";
-import { getKrogerUserTokenOrRefresh } from "./kroger-tokens.js";
-import { ensurePublicConfig, getBackendOrigin } from "./public-config.js";
+import {
+  getKrogerAccountLinked,
+  getKrogerUserTokenOrRefresh,
+  refreshKrogerLinkedFromApi,
+} from "./kroger-tokens.js";
+import { ensurePublicConfig, getBackendOrigin, tryGetPublicConfig } from "./public-config.js";
 import { shortProductName } from "./html-utils.js";
 import type { KrogerCartResponse, KrogerProduct } from "./types.js";
 
@@ -15,12 +19,23 @@ export async function addProductToCart(
   quantity: number,
   options?: AddToCartOptions
 ): Promise<boolean> {
-  const userToken = await getKrogerUserTokenOrRefresh();
-  if (!userToken) {
-    alert("Please sign in with Kroger first.");
-    return false;
-  }
   await ensurePublicConfig();
+  const cookieMode = Boolean(tryGetPublicConfig()?.cookieSessionAuth);
+  let userToken = "";
+  if (cookieMode) {
+    await refreshKrogerLinkedFromApi();
+    if (!getKrogerAccountLinked()) {
+      alert("Please sign in with Kroger first.");
+      return false;
+    }
+  } else {
+    const t = await getKrogerUserTokenOrRefresh();
+    if (!t) {
+      alert("Please sign in with Kroger first.");
+      return false;
+    }
+    userToken = t;
+  }
   const fileProto = window.location.protocol === "file:";
   const krogerBase = fileProto ? "https://api.kroger.com" : "";
   const krogerPrefix = fileProto ? "" : getBackendOrigin() + "/kroger-api";
@@ -39,10 +54,11 @@ export async function addProductToCart(
     const response = await fetch(cartUrl, {
       method: "PUT",
       headers: {
-        ...krogerProxyHeaders(userToken),
+        ...krogerProxyHeaders(cookieMode ? "" : userToken),
         "Content-Type": "application/json",
       },
       body: JSON.stringify(itemData),
+      ...(tryGetPublicConfig()?.cookieSessionAuth ? { credentials: "include" as RequestCredentials } : {}),
     });
     const text = await response.text();
     let result: KrogerCartResponse = {};

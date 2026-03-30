@@ -1,7 +1,47 @@
 import { appState } from "./app-state.js";
 import { mergeAppAuth } from "./authed-fetch.js";
-import { apiUrl, ensurePublicConfig, getPublicConfig } from "./public-config.js";
+import {
+  apiUrl,
+  ensurePublicConfig,
+  getPublicConfig,
+  tryGetPublicConfig,
+} from "./public-config.js";
 import type { TokenResponse } from "./types.js";
+
+/** Set from `/api/me` when `cookieSessionAuth` — Kroger user tokens live on server only. */
+let krogerAccountLinked = false;
+
+export function getKrogerAccountLinked(): boolean {
+  return krogerAccountLinked;
+}
+
+export function setKrogerAccountLinked(v: boolean): void {
+  krogerAccountLinked = v;
+}
+
+export async function refreshKrogerLinkedFromApi(): Promise<void> {
+  try {
+    await ensurePublicConfig();
+  } catch {
+    krogerAccountLinked = false;
+    return;
+  }
+  if (!getPublicConfig().cookieSessionAuth) {
+    krogerAccountLinked = false;
+    return;
+  }
+  try {
+    const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+    if (!r.ok) {
+      krogerAccountLinked = false;
+      return;
+    }
+    const j = (await r.json()) as { krogerLinked?: boolean };
+    krogerAccountLinked = Boolean(j.krogerLinked);
+  } catch {
+    krogerAccountLinked = false;
+  }
+}
 
 export function clearKrogerToken(): void {
   appState.accessToken = null;
@@ -19,10 +59,17 @@ export function getKrogerUserToken(): string | null {
 }
 
 export function hasKrogerUserSession(): boolean {
+  if (tryGetPublicConfig()?.cookieSessionAuth) {
+    return krogerAccountLinked;
+  }
   return !!getKrogerUserToken() || !!localStorage.getItem("krogerUserRefreshToken");
 }
 
 export async function getKrogerUserTokenOrRefresh(): Promise<string | null> {
+  await ensurePublicConfig();
+  if (getPublicConfig().cookieSessionAuth) {
+    return null;
+  }
   const token = getKrogerUserToken();
   if (token) return token;
   const refreshToken = localStorage.getItem("krogerUserRefreshToken");
@@ -30,7 +77,6 @@ export async function getKrogerUserTokenOrRefresh(): Promise<string | null> {
   const krogerPath = window.location.protocol === "file:" ? "" : "/kroger-api";
   if (krogerPath !== "/kroger-api") return null;
   try {
-    await ensurePublicConfig();
     const res = await fetch(
       apiUrl("/kroger-api/oauth-refresh"),
       mergeAppAuth({
@@ -107,10 +153,19 @@ export async function signInWithKroger(): Promise<void> {
   window.location.href = url;
 }
 
-export function signOutKroger(): void {
+export async function signOutKroger(): Promise<void> {
+  try {
+    await ensurePublicConfig();
+    if (getPublicConfig().cookieSessionAuth) {
+      await fetch(apiUrl("/api/kroger-session"), mergeAppAuth({ method: "DELETE" }));
+    }
+  } catch {
+    /* ignore */
+  }
   localStorage.removeItem("krogerUserToken");
   localStorage.removeItem("krogerUserTokenExpiry");
   localStorage.removeItem("krogerUserRefreshToken");
+  krogerAccountLinked = false;
   updateSignInUI();
 }
 

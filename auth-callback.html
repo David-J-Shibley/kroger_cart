@@ -48,6 +48,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code: code, redirectUri: redirectUri }),
+          credentials: "include",
         });
         var data = await res.json();
         if (!res.ok) {
@@ -55,6 +56,15 @@
           document.getElementById("detail").textContent =
             (data.error_description || data.message || data.error || JSON.stringify(data));
           document.getElementById("back").style.display = "inline";
+          return;
+        }
+        if (cfg.cookieSessionAuth && data.ok) {
+          try {
+            localStorage.removeItem("appCognitoAccessToken");
+            localStorage.removeItem("appCognitoRefreshToken");
+            localStorage.removeItem("appCognitoIdToken");
+          } catch (e) { /* ignore */ }
+          window.location.replace("/index.html");
           return;
         }
         if (!data.access_token) {

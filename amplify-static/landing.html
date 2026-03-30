@@ -112,7 +112,17 @@
             return;
           }
           try {
-            if (localStorage.getItem("appCognitoAccessToken")) {
+            if (cfg.cookieSessionAuth) {
+              var mr = await fetch(apiOrigin + "/api/me", {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+              });
+              if (mr.ok) {
+                window.location.replace("/index.html");
+                return;
+              }
+            } else if (localStorage.getItem("appCognitoAccessToken")) {
               window.location.replace("/index.html");
               return;
             }

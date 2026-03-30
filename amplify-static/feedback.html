@@ -50,9 +50,12 @@
   </main>
   <script src="api-host-bootstrap.js"></script>
   <script>
+    var feedbackCookieSessionAuth = false;
+
     function feedbackAuthHeaders() {
-      var t = localStorage.getItem("appCognitoAccessToken");
       var h = { "Content-Type": "application/json" };
+      if (feedbackCookieSessionAuth) return h;
+      var t = localStorage.getItem("appCognitoAccessToken");
       if (t) h["Authorization"] = "Bearer " + String(t).replace(/\s+/g, "").trim();
       return h;
     }
@@ -66,9 +69,17 @@
       st.classList.remove("feedback-status--success", "feedback-status--error");
       try {
         var base = await window.krogerCartApiBase();
+        try {
+          var pcr = await fetch(base + "/api/public-config");
+          if (pcr.ok) {
+            var pcj = await pcr.json();
+            feedbackCookieSessionAuth = !!pcj.cookieSessionAuth;
+          }
+        } catch (err) { /* ignore */ }
         var res = await fetch(base + "/api/feedback", {
           method: "POST",
           headers: feedbackAuthHeaders(),
+          credentials: feedbackCookieSessionAuth ? "include" : "same-origin",
           body: JSON.stringify({
             category: document.getElementById("fbCategory").value,
             message: document.getElementById("fbMessage").value,

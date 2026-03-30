@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
+import { config } from "../config.js";
 import { upsertUserFromAuth, getUser } from "../db/users.js";
+import { krogerLinkedFromCookieSession } from "../session/krogerSession.js";
 
 export async function getMe(req: Request, res: Response): Promise<void> {
   const userId = req.appUserId;
@@ -12,11 +14,14 @@ export async function getMe(req: Request, res: Response): Promise<void> {
     username: req.appUsername,
   });
   const user = await getUser(userId);
+  const krogerLinked =
+    config.cookieAppSessionEnabled && (await krogerLinkedFromCookieSession(req));
   res.json({
     userId,
     email: user?.email ?? req.appUserEmail ?? null,
     username: user?.username ?? req.appUsername ?? null,
     subscriptionStatus: user?.subscriptionStatus ?? "none",
     stripeCustomerId: user?.stripeCustomerId ?? null,
+    krogerLinked,
   });
 }

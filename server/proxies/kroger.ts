@@ -1,18 +1,13 @@
 import type { Request, Response } from "express";
-import { getKrogerCredentials } from "../config.js";
+import { config, getKrogerCredentials } from "../config.js";
 import { logger } from "../logger.js";
+import {
+  mergeKrogerOAuthIntoCookieSession,
+  resolveKrogerProxyAuthorization,
+} from "../session/krogerSession.js";
 
 const KROGER_ORIGIN = "https://api.kroger.com";
 
-/** Forward Kroger bearer from client: use `X-Kroger-Authorization` (Cognito uses `Authorization`). */
-function krogerForwardAuth(req: Request): string | undefined {
-  const raw =
-    req.headers["x-kroger-authorization"] || req.headers["X-Kroger-Authorization"];
-  const v = typeof raw === "string" ? raw : Array.isArray(raw) ? raw[0] : "";
-  if (!v) return undefined;
-  const trimmed = v.replace(/^\s*Bearer\s+/i, "").replace(/\s+/g, "").trim();
-  return trimmed ? "Bearer " + trimmed : undefined;
-}
 
 export async function krogerProxyMiddleware(req: Request, res: Response, next: () => void): Promise<void> {
   const pathname = req.originalUrl?.split("?")[0] ?? req.path ?? "";
@@ -116,6 +111,25 @@ export async function krogerProxyMiddleware(req: Request, res: Response, next: (
       if (tokenJson && typeof tokenJson.access_token === "string") {
         tokenJson.access_token = (tokenJson.access_token as string).replace(/\s+/g, "").trim();
       }
+      if (config.cookieAppSessionEnabled && tokenRes.ok && tokenJson.access_token) {
+        const merged = await mergeKrogerOAuthIntoCookieSession(req, tokenJson);
+        if (!merged) {
+          if (!config.authRequired) {
+            res.status(tokenRes.status).set("Content-Type", "application/json");
+            res.end(JSON.stringify(tokenJson));
+            return;
+          }
+          res.status(401).json({
+            error: "app_session_required",
+            error_description:
+              "Sign in to the app first (cookie session), then link your Kroger account.",
+          });
+          return;
+        }
+        res.status(200).set("Content-Type", "application/json");
+        res.end(JSON.stringify({ ok: true }));
+        return;
+      }
       res.status(tokenRes.status).set("Content-Type", "application/json");
       res.end(JSON.stringify(tokenJson));
       return;
@@ -187,7 +201,7 @@ export async function krogerProxyMiddleware(req: Request, res: Response, next: (
       "Content-Type": req.headers["content-type"] ?? "application/json",
       "Accept-Encoding": "identity",
     };
-    const krogerAuth = krogerForwardAuth(req);
+    const krogerAuth = await resolveKrogerProxyAuthorization(req);
     if (krogerAuth) {
       (headers as Record<string, string>)["Authorization"] = krogerAuth;
     }

@@ -60,6 +60,7 @@ export function publicConfigHandler(req: Request, res: Response): void {
   }
 
   res.json({
+    cookieSessionAuth: config.cookieAppSessionEnabled,
     krogerClientId: creds?.clientId ?? "",
     krogerRedirectUri: redirectUri,
     krogerLocationId: (process.env.KROGER_LOCATION_ID || "").trim(),

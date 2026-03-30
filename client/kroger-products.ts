@@ -1,6 +1,11 @@
 import { krogerProxyHeaders } from "./authed-fetch.js";
 import { clearKrogerToken } from "./kroger-tokens.js";
-import { ensurePublicConfig, getBackendOrigin, getKrogerLocationId } from "./public-config.js";
+import {
+  ensurePublicConfig,
+  getBackendOrigin,
+  getKrogerLocationId,
+  tryGetPublicConfig,
+} from "./public-config.js";
 import type { PickerProduct } from "./types.js";
 
 export async function searchKrogerProducts(
@@ -22,7 +27,10 @@ export async function searchKrogerProducts(
   const loc = getKrogerLocationId();
   if (loc) url += "&filter.locationId=" + encodeURIComponent(loc);
   const bearerToken = String(token).replace(/\s+/g, "").trim();
-  const res = await fetch(url, { headers: krogerProxyHeaders(bearerToken) });
+  const res = await fetch(url, {
+    headers: krogerProxyHeaders(bearerToken),
+    ...(tryGetPublicConfig()?.cookieSessionAuth ? { credentials: "include" as RequestCredentials } : {}),
+  });
   const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (res.status === 401 || (json.code && String(json.code) === "AUTH-1007")) {
     clearKrogerToken();

@@ -60,9 +60,18 @@
       const redirectUri = sessionStorage.getItem("krogerOAuthRedirectUri") || (window.location.origin + "/kroger-oauth-callback.html");
 
       try {
+        var pub = await fetch(base + "/api/public-config").then(function (r) { return r.json(); });
+        var xh = { "Content-Type": "application/json" };
+        if (!pub.cookieSessionAuth) {
+          var acc = localStorage.getItem("appCognitoAccessToken");
+          if (acc) xh["Authorization"] = "Bearer " + String(acc).replace(/\s+/g, "").trim();
+          var idt = localStorage.getItem("appCognitoIdToken");
+          if (idt) xh["X-Cognito-Id-Token"] = String(idt).replace(/\s+/g, "").trim();
+        }
         const res = await fetch(base + "/kroger-api/oauth-exchange", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: xh,
+          credentials: pub.cookieSessionAuth ? "include" : "same-origin",
           body: JSON.stringify({
             code: code,
             redirectUri: redirectUri,
@@ -74,6 +83,20 @@
           document.getElementById("status").textContent = "Token exchange failed.";
           document.getElementById("detail").textContent = data.error_description || data.error || res.status;
           document.getElementById("back").style.display = "inline";
+          return;
+        }
+
+        if (pub.cookieSessionAuth && data.ok) {
+          sessionStorage.removeItem("krogerOAuthState");
+          sessionStorage.removeItem("krogerOAuthRedirectUri");
+          try {
+            localStorage.removeItem("krogerUserToken");
+            localStorage.removeItem("krogerUserTokenExpiry");
+            localStorage.removeItem("krogerUserRefreshToken");
+          } catch (e) { /* ignore */ }
+          document.getElementById("status").className = "msg success";
+          document.getElementById("status").textContent = "Signed in successfully. Redirecting…";
+          window.location.href = "/index.html";
           return;
         }
 

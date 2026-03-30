@@ -31,60 +31,6 @@ function clearCognitoSession() {
   localStorage.removeItem(ID_KEY);
 }
 
-// client/authed-fetch.ts
-function mergeAppAuth(init2 = {}) {
-  const token = getCognitoAccessToken();
-  const idToken = getCognitoIdToken();
-  const headers = new Headers(init2.headers);
-  if (token) {
-    headers.set("Authorization", "Bearer " + token.replace(/\s+/g, "").trim());
-  }
-  if (idToken) {
-    headers.set("X-Cognito-Id-Token", idToken.replace(/\s+/g, "").trim());
-  }
-  return { ...init2, headers };
-}
-function krogerProxyHeaders(krogerBearerToken) {
-  const h = {};
-  const t = getCognitoAccessToken();
-  const id = getCognitoIdToken();
-  if (t) h.Authorization = "Bearer " + t.replace(/\s+/g, "").trim();
-  if (id) h["X-Cognito-Id-Token"] = id.replace(/\s+/g, "").trim();
-  const kb = krogerBearerToken.replace(/^Bearer\s+/i, "").replace(/\s+/g, "").trim();
-  h["X-Kroger-Authorization"] = "Bearer " + kb;
-  return h;
-}
-
-// client/kroger-app-launch.ts
-var KROGER_SHOPPING_CART_URL = "https://www.kroger.com/shopping/cart";
-var bulkBannerWired = false;
-function wireBulkDoneBannerOnce() {
-  if (bulkBannerWired) return;
-  bulkBannerWired = true;
-  document.getElementById("krogerBulkDoneOpenBtn")?.addEventListener("click", () => {
-    window.open(KROGER_SHOPPING_CART_URL, "_blank", "noopener,noreferrer");
-  });
-  document.getElementById("krogerBulkDoneDismissBtn")?.addEventListener("click", () => {
-    dismissKrogerBulkDoneBanner();
-  });
-}
-function dismissKrogerBulkDoneBanner() {
-  const el = document.getElementById("krogerBulkDoneBanner");
-  if (el) el.hidden = true;
-}
-function showBulkAddKrogerFollowup(added, failed) {
-  if (added <= 0) return;
-  wireBulkDoneBannerOnce();
-  const banner = document.getElementById("krogerBulkDoneBanner");
-  const msg = document.getElementById("krogerBulkDoneBannerMessage");
-  if (!banner || !msg) return;
-  const lines = added === 1 ? "1 line was" : `${added} lines were`;
-  const failPart = failed ? ` ${failed} line${failed === 1 ? "" : "s"} could not be added (see any alerts above).` : "";
-  msg.textContent = `${lines} added to your Kroger cart.${failPart}`;
-  banner.hidden = false;
-  banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
 // client/public-config.ts
 var cached = null;
 var backendOriginCache = null;
@@ -145,6 +91,7 @@ async function ensurePublicConfig() {
     authRequired: Boolean(raw.authRequired),
     authAllowAnonymousBrowsing: Boolean(raw.authAllowAnonymousBrowsing),
     subscriptionRequired: Boolean(raw.subscriptionRequired),
+    cookieSessionAuth: Boolean(raw.cookieSessionAuth),
     testMode: Boolean(raw.testMode)
   };
   return cached;
@@ -171,6 +118,74 @@ function getLlmProvider() {
 }
 function getAppOrigin() {
   return getBackendOrigin();
+}
+
+// client/authed-fetch.ts
+function mergeAppAuth(init2 = {}) {
+  const cfg = tryGetPublicConfig();
+  const cookieMode = Boolean(cfg?.cookieSessionAuth);
+  const token = getCognitoAccessToken();
+  const idToken = getCognitoIdToken();
+  const headers = new Headers(init2.headers);
+  if (!cookieMode) {
+    if (token) {
+      headers.set("Authorization", "Bearer " + token.replace(/\s+/g, "").trim());
+    }
+    if (idToken) {
+      headers.set("X-Cognito-Id-Token", idToken.replace(/\s+/g, "").trim());
+    }
+  }
+  const out = { ...init2, headers };
+  if (cookieMode) {
+    out.credentials = init2.credentials ?? "include";
+  }
+  return out;
+}
+function krogerProxyHeaders(krogerBearerToken) {
+  const h = {};
+  const cfg = tryGetPublicConfig();
+  const cookieMode = Boolean(cfg?.cookieSessionAuth);
+  if (!cookieMode) {
+    const t = getCognitoAccessToken();
+    const id = getCognitoIdToken();
+    if (t) h.Authorization = "Bearer " + t.replace(/\s+/g, "").trim();
+    if (id) h["X-Cognito-Id-Token"] = id.replace(/\s+/g, "").trim();
+  }
+  const kb = krogerBearerToken.replace(/^Bearer\s+/i, "").replace(/\s+/g, "").trim();
+  if (kb) {
+    h["X-Kroger-Authorization"] = "Bearer " + kb;
+  }
+  return h;
+}
+
+// client/kroger-app-launch.ts
+var KROGER_SHOPPING_CART_URL = "https://www.kroger.com/shopping/cart";
+var bulkBannerWired = false;
+function wireBulkDoneBannerOnce() {
+  if (bulkBannerWired) return;
+  bulkBannerWired = true;
+  document.getElementById("krogerBulkDoneOpenBtn")?.addEventListener("click", () => {
+    window.open(KROGER_SHOPPING_CART_URL, "_blank", "noopener,noreferrer");
+  });
+  document.getElementById("krogerBulkDoneDismissBtn")?.addEventListener("click", () => {
+    dismissKrogerBulkDoneBanner();
+  });
+}
+function dismissKrogerBulkDoneBanner() {
+  const el = document.getElementById("krogerBulkDoneBanner");
+  if (el) el.hidden = true;
+}
+function showBulkAddKrogerFollowup(added, failed) {
+  if (added <= 0) return;
+  wireBulkDoneBannerOnce();
+  const banner = document.getElementById("krogerBulkDoneBanner");
+  const msg = document.getElementById("krogerBulkDoneBannerMessage");
+  if (!banner || !msg) return;
+  const lines = added === 1 ? "1 line was" : `${added} lines were`;
+  const failPart = failed ? ` ${failed} line${failed === 1 ? "" : "s"} could not be added (see any alerts above).` : "";
+  msg.textContent = `${lines} added to your Kroger cart.${failPart}`;
+  banner.hidden = false;
+  banner.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // client/billing.ts
@@ -427,6 +442,33 @@ function showAddToCartToast(displayName, quantity2, detail) {
 }
 
 // client/kroger-tokens.ts
+var krogerAccountLinked = false;
+function getKrogerAccountLinked() {
+  return krogerAccountLinked;
+}
+async function refreshKrogerLinkedFromApi() {
+  try {
+    await ensurePublicConfig();
+  } catch {
+    krogerAccountLinked = false;
+    return;
+  }
+  if (!getPublicConfig().cookieSessionAuth) {
+    krogerAccountLinked = false;
+    return;
+  }
+  try {
+    const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+    if (!r.ok) {
+      krogerAccountLinked = false;
+      return;
+    }
+    const j = await r.json();
+    krogerAccountLinked = Boolean(j.krogerLinked);
+  } catch {
+    krogerAccountLinked = false;
+  }
+}
 function clearKrogerToken() {
   appState.accessToken = null;
   localStorage.removeItem("krogerToken");
@@ -441,9 +483,16 @@ function getKrogerUserToken() {
   return token.replace(/\s+/g, "").trim();
 }
 function hasKrogerUserSession() {
+  if (tryGetPublicConfig()?.cookieSessionAuth) {
+    return krogerAccountLinked;
+  }
   return !!getKrogerUserToken() || !!localStorage.getItem("krogerUserRefreshToken");
 }
 async function getKrogerUserTokenOrRefresh() {
+  await ensurePublicConfig();
+  if (getPublicConfig().cookieSessionAuth) {
+    return null;
+  }
   const token = getKrogerUserToken();
   if (token) return token;
   const refreshToken = localStorage.getItem("krogerUserRefreshToken");
@@ -451,7 +500,6 @@ async function getKrogerUserTokenOrRefresh() {
   const krogerPath = window.location.protocol === "file:" ? "" : "/kroger-api";
   if (krogerPath !== "/kroger-api") return null;
   try {
-    await ensurePublicConfig();
     const res = await fetch(
       apiUrl("/kroger-api/oauth-refresh"),
       mergeAppAuth({
@@ -509,10 +557,18 @@ async function signInWithKroger() {
   const url = "https://api.kroger.com/v1/connect/oauth2/authorize?client_id=" + encodeURIComponent(cfg.krogerClientId) + "&redirect_uri=" + encodeURIComponent(cfg.krogerRedirectUri) + "&response_type=code&scope=" + scope + "&state=" + encodeURIComponent(state);
   window.location.href = url;
 }
-function signOutKroger() {
+async function signOutKroger() {
+  try {
+    await ensurePublicConfig();
+    if (getPublicConfig().cookieSessionAuth) {
+      await fetch(apiUrl("/api/kroger-session"), mergeAppAuth({ method: "DELETE" }));
+    }
+  } catch {
+  }
   localStorage.removeItem("krogerUserToken");
   localStorage.removeItem("krogerUserTokenExpiry");
   localStorage.removeItem("krogerUserRefreshToken");
+  krogerAccountLinked = false;
   updateSignInUI();
 }
 async function getAccessToken() {
@@ -645,12 +701,23 @@ function shortProductName(name) {
 
 // client/cart-api.ts
 async function addProductToCart(product, quantity2, options) {
-  const userToken = await getKrogerUserTokenOrRefresh();
-  if (!userToken) {
-    alert("Please sign in with Kroger first.");
-    return false;
-  }
   await ensurePublicConfig();
+  const cookieMode = Boolean(tryGetPublicConfig()?.cookieSessionAuth);
+  let userToken = "";
+  if (cookieMode) {
+    await refreshKrogerLinkedFromApi();
+    if (!getKrogerAccountLinked()) {
+      alert("Please sign in with Kroger first.");
+      return false;
+    }
+  } else {
+    const t = await getKrogerUserTokenOrRefresh();
+    if (!t) {
+      alert("Please sign in with Kroger first.");
+      return false;
+    }
+    userToken = t;
+  }
   const fileProto = window.location.protocol === "file:";
   const krogerBase = fileProto ? "https://api.kroger.com" : "";
   const krogerPrefix = fileProto ? "" : getBackendOrigin() + "/kroger-api";
@@ -669,10 +736,11 @@ async function addProductToCart(product, quantity2, options) {
     const response = await fetch(cartUrl, {
       method: "PUT",
       headers: {
-        ...krogerProxyHeaders(userToken),
+        ...krogerProxyHeaders(cookieMode ? "" : userToken),
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(itemData)
+      body: JSON.stringify(itemData),
+      ...tryGetPublicConfig()?.cookieSessionAuth ? { credentials: "include" } : {}
     });
     const text = await response.text();
     let result = {};
@@ -738,7 +806,10 @@ async function searchKrogerProducts(token, searchTerm, limit = 10) {
   const loc = getKrogerLocationId();
   if (loc) url += "&filter.locationId=" + encodeURIComponent(loc);
   const bearerToken = String(token).replace(/\s+/g, "").trim();
-  const res = await fetch(url, { headers: krogerProxyHeaders(bearerToken) });
+  const res = await fetch(url, {
+    headers: krogerProxyHeaders(bearerToken),
+    ...tryGetPublicConfig()?.cookieSessionAuth ? { credentials: "include" } : {}
+  });
   const json = await res.json().catch(() => ({}));
   if (res.status === 401 || json.code && String(json.code) === "AUTH-1007") {
     clearKrogerToken();
@@ -871,12 +942,24 @@ async function searchAndAddToCart(productName, quantity2) {
     alert("Please enter a valid product name and quantity.");
     return false;
   }
-  const userToken = await getKrogerUserTokenOrRefresh();
-  if (!userToken) {
-    alert(
-      'Please sign in with Kroger first (click "Sign in with Kroger" above) to add items to your cart.'
-    );
-    return false;
+  await ensurePublicConfig();
+  const cookieMode = Boolean(tryGetPublicConfig()?.cookieSessionAuth);
+  if (cookieMode) {
+    await refreshKrogerLinkedFromApi();
+    if (!getKrogerAccountLinked()) {
+      alert(
+        'Please sign in with Kroger first (click "Sign in with Kroger" above) to add items to your cart.'
+      );
+      return false;
+    }
+  } else {
+    const userToken = await getKrogerUserTokenOrRefresh();
+    if (!userToken) {
+      alert(
+        'Please sign in with Kroger first (click "Sign in with Kroger" above) to add items to your cart.'
+      );
+      return false;
+    }
   }
   try {
     const appToken = await getAccessToken();
@@ -1410,12 +1493,15 @@ async function generateGroceryList() {
   try {
     await ensurePublicConfig();
     const pub = tryGetPublicConfig();
-    if (pub?.authRequired && !getCognitoAccessToken()) {
-      clearTimeout(slowHintId);
-      out.style.display = "none";
-      btn.disabled = false;
-      alert("Sign in or create an account (buttons in the header) to generate a meal plan.");
-      return;
+    if (pub?.authRequired) {
+      const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+      if (!me.ok) {
+        clearTimeout(slowHintId);
+        out.style.display = "none";
+        btn.disabled = false;
+        alert("Sign in or create an account (buttons in the header) to generate a meal plan.");
+        return;
+      }
     }
     const ollamaModel = getOllamaModel();
     modelHint = ollamaModel;
@@ -1520,6 +1606,19 @@ async function generateGroceryList() {
 }
 
 // client/kroger-cart.ts
+async function isAppSignedIn() {
+  const cfg = tryGetPublicConfig();
+  if (!cfg) return false;
+  if (cfg.cookieSessionAuth) {
+    try {
+      const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+      return r.ok;
+    } catch {
+      return false;
+    }
+  }
+  return Boolean(getCognitoAccessToken());
+}
 async function updateAccountBar() {
   const bar = document.getElementById("accountAppBar");
   const btnIn = document.getElementById("btnAppSignIn");
@@ -1535,35 +1634,35 @@ async function updateAccountBar() {
     return;
   }
   bar.style.display = "";
-  const tok = getCognitoAccessToken();
-  const showAuthCtas = !tok && (cfg.authRequired || canAppSignIn);
+  const signedIn = await isAppSignedIn();
+  const showAuthCtas = !signedIn && (cfg.authRequired || canAppSignIn);
   if (btnIn) btnIn.style.display = showAuthCtas ? "inline-block" : "none";
   const btnUp = document.getElementById("btnAppSignUp");
   if (btnUp) btnUp.style.display = showAuthCtas && canAppSignIn ? "inline-block" : "none";
-  if (btnOut) btnOut.style.display = tok ? "inline-block" : "none";
-  if (btnSub) btnSub.style.display = tok && cfg.subscriptionRequired ? "inline-block" : "none";
-  if (btnPortal) btnPortal.style.display = tok ? "inline-block" : "none";
+  if (btnOut) btnOut.style.display = signedIn ? "inline-block" : "none";
+  if (btnSub) btnSub.style.display = signedIn && cfg.subscriptionRequired ? "inline-block" : "none";
+  if (btnPortal) btnPortal.style.display = signedIn ? "inline-block" : "none";
   if (statusEl) {
-    if (!tok) {
+    if (!signedIn) {
       statusEl.textContent = "";
-      return;
-    }
-    try {
-      const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
-      const j = await r.json();
-      if (r.ok && j.subscriptionStatus) {
-        statusEl.textContent = "Plan: " + j.subscriptionStatus;
-      } else {
+    } else {
+      try {
+        const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+        const j = await r.json();
+        if (r.ok && j.subscriptionStatus) {
+          statusEl.textContent = "Plan: " + j.subscriptionStatus;
+        } else {
+          statusEl.textContent = "";
+        }
+      } catch {
         statusEl.textContent = "";
       }
-    } catch {
-      statusEl.textContent = "";
     }
   }
   const adminLink = document.getElementById("adminLink");
   if (adminLink) {
     adminLink.style.display = "none";
-    if (tok && cfg.authRequired) {
+    if (signedIn && cfg.authRequired) {
       try {
         const ar = await fetch(apiUrl("/api/admin/status"), mergeAppAuth({ method: "GET" }));
         if (ar.ok) {
@@ -1575,7 +1674,14 @@ async function updateAccountBar() {
     }
   }
 }
-function signOutApp() {
+async function signOutApp() {
+  const cfg = tryGetPublicConfig();
+  try {
+    if (cfg?.cookieSessionAuth) {
+      await fetch(apiUrl("/api/auth/session"), mergeAppAuth({ method: "DELETE" }));
+    }
+  } catch {
+  }
   clearCognitoSession();
   window.location.reload();
 }
@@ -1605,8 +1711,8 @@ async function init() {
     }
   }
   if (cfg && cfg.authRequired && !isAuthFlowPath()) {
-    const tok = getCognitoAccessToken();
-    if (!tok) {
+    const signedIn = await isAppSignedIn();
+    if (!signedIn) {
       if (!cfg.authAllowAnonymousBrowsing) {
         window.location.href = "/";
         return;
@@ -1625,7 +1731,8 @@ async function init() {
   }
   const guestBanner = document.getElementById("authBrowseBanner");
   if (guestBanner) {
-    const showGuest = Boolean(cfg?.authRequired && cfg.authAllowAnonymousBrowsing && !getCognitoAccessToken());
+    const signedInGuest = await isAppSignedIn();
+    const showGuest = Boolean(cfg?.authRequired && cfg.authAllowAnonymousBrowsing && !signedInGuest);
     guestBanner.hidden = !showGuest;
   }
   if (localStorage.getItem(SAVED_LLM_KEY)) {
@@ -1635,6 +1742,9 @@ async function init() {
   const loadExampleBtn = document.getElementById("loadExampleBtn");
   if (loadExampleBtn) {
     loadExampleBtn.hidden = !cfg?.testMode;
+  }
+  if (cfg?.cookieSessionAuth) {
+    await refreshKrogerLinkedFromApi();
   }
   updateSignInUI();
   const redirectEl = document.getElementById("redirectUriDisplay");

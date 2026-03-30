@@ -32,10 +32,25 @@ import {
 } from "./product-picker.js";
 import { apiUrl, ensurePublicConfig, tryGetPublicConfig, type PublicConfig } from "./public-config.js";
 import {
+  refreshKrogerLinkedFromApi,
   signInWithKroger,
   signOutKroger,
   updateSignInUI,
 } from "./kroger-tokens.js";
+
+async function isAppSignedIn(): Promise<boolean> {
+  const cfg = tryGetPublicConfig();
+  if (!cfg) return false;
+  if (cfg.cookieSessionAuth) {
+    try {
+      const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+      return r.ok;
+    } catch {
+      return false;
+    }
+  }
+  return Boolean(getCognitoAccessToken());
+}
 
 async function updateAccountBar(): Promise<void> {
   const bar = document.getElementById("accountAppBar");
@@ -52,35 +67,35 @@ async function updateAccountBar(): Promise<void> {
     return;
   }
   bar.style.display = "";
-  const tok = getCognitoAccessToken();
-  const showAuthCtas = !tok && (cfg.authRequired || canAppSignIn);
+  const signedIn = await isAppSignedIn();
+  const showAuthCtas = !signedIn && (cfg.authRequired || canAppSignIn);
   if (btnIn) btnIn.style.display = showAuthCtas ? "inline-block" : "none";
   const btnUp = document.getElementById("btnAppSignUp");
   if (btnUp) btnUp.style.display = showAuthCtas && canAppSignIn ? "inline-block" : "none";
-  if (btnOut) btnOut.style.display = tok ? "inline-block" : "none";
-  if (btnSub) btnSub.style.display = tok && cfg.subscriptionRequired ? "inline-block" : "none";
-  if (btnPortal) btnPortal.style.display = tok ? "inline-block" : "none";
+  if (btnOut) btnOut.style.display = signedIn ? "inline-block" : "none";
+  if (btnSub) btnSub.style.display = signedIn && cfg.subscriptionRequired ? "inline-block" : "none";
+  if (btnPortal) btnPortal.style.display = signedIn ? "inline-block" : "none";
   if (statusEl) {
-    if (!tok) {
+    if (!signedIn) {
       statusEl.textContent = "";
-      return;
-    }
-    try {
-      const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
-      const j = (await r.json()) as { subscriptionStatus?: string; error?: string };
-      if (r.ok && j.subscriptionStatus) {
-        statusEl.textContent = "Plan: " + j.subscriptionStatus;
-      } else {
+    } else {
+      try {
+        const r = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+        const j = (await r.json()) as { subscriptionStatus?: string; error?: string };
+        if (r.ok && j.subscriptionStatus) {
+          statusEl.textContent = "Plan: " + j.subscriptionStatus;
+        } else {
+          statusEl.textContent = "";
+        }
+      } catch {
         statusEl.textContent = "";
       }
-    } catch {
-      statusEl.textContent = "";
     }
   }
   const adminLink = document.getElementById("adminLink");
   if (adminLink) {
     adminLink.style.display = "none";
-    if (tok && cfg.authRequired) {
+    if (signedIn && cfg.authRequired) {
       try {
         const ar = await fetch(apiUrl("/api/admin/status"), mergeAppAuth({ method: "GET" }));
         if (ar.ok) {
@@ -94,7 +109,15 @@ async function updateAccountBar(): Promise<void> {
   }
 }
 
-function signOutApp(): void {
+async function signOutApp(): Promise<void> {
+  const cfg = tryGetPublicConfig();
+  try {
+    if (cfg?.cookieSessionAuth) {
+      await fetch(apiUrl("/api/auth/session"), mergeAppAuth({ method: "DELETE" }));
+    }
+  } catch {
+    /* ignore */
+  }
   clearCognitoSession();
   window.location.reload();
 }
@@ -129,8 +152,8 @@ async function init(): Promise<void> {
     }
   }
   if (cfg && cfg.authRequired && !isAuthFlowPath()) {
-    const tok = getCognitoAccessToken();
-    if (!tok) {
+    const signedIn = await isAppSignedIn();
+    if (!signedIn) {
       if (!cfg.authAllowAnonymousBrowsing) {
         window.location.href = "/";
         return;
@@ -151,8 +174,8 @@ async function init(): Promise<void> {
 
   const guestBanner = document.getElementById("authBrowseBanner");
   if (guestBanner) {
-    const showGuest =
-      Boolean(cfg?.authRequired && cfg.authAllowAnonymousBrowsing && !getCognitoAccessToken());
+    const signedInGuest = await isAppSignedIn();
+    const showGuest = Boolean(cfg?.authRequired && cfg.authAllowAnonymousBrowsing && !signedInGuest);
     guestBanner.hidden = !showGuest;
   }
   if (localStorage.getItem(SAVED_LLM_KEY)) {
@@ -162,6 +185,9 @@ async function init(): Promise<void> {
   const loadExampleBtn = document.getElementById("loadExampleBtn");
   if (loadExampleBtn) {
     loadExampleBtn.hidden = !cfg?.testMode;
+  }
+  if (cfg?.cookieSessionAuth) {
+    await refreshKrogerLinkedFromApi();
   }
   updateSignInUI();
   const redirectEl = document.getElementById("redirectUriDisplay");
@@ -211,7 +237,7 @@ async function syncCheckoutIfNeeded(): Promise<void> {
 declare global {
   interface Window {
     signInWithKroger: () => Promise<void>;
-    signOutKroger: () => void;
+    signOutKroger: () => Promise<void>;
     addItem: () => Promise<void>;
     closeProductPicker: () => void;
     generateGroceryList: () => Promise<void>;
@@ -226,7 +252,7 @@ declare global {
     pickProductAndAdd: (index: number) => Promise<void>;
     showProductMetadata: (index: number) => void;
     closeProductMetadata: () => void;
-    signOutApp: () => void;
+    signOutApp: () => Promise<void>;
     goAppSignIn: () => void;
     goAppSignUp: () => void;
     subscribeToPlan: () => Promise<void>;

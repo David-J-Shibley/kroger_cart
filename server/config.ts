@@ -116,6 +116,25 @@ export const config = {
   cognitoAuthCallbackUrl: envStr("COGNITO_AUTH_CALLBACK_URL"),
 
   dynamodbUsersTable: envStr("DYNAMODB_USERS_TABLE"),
+  /**
+   * HttpOnly cookie sessions: encrypted Cognito tokens stored here (not in localStorage).
+   * Enable with COOKIE_APP_SESSION=true plus APP_SESSION_SECRET (≥16 chars).
+   */
+  dynamodbSessionsTable: envStr("DYNAMODB_SESSIONS_TABLE"),
+  /** Server-only secret to encrypt session payloads in DynamoDB. */
+  appSessionSecret: envStr("APP_SESSION_SECRET"),
+  /**
+   * When true and sessions table + secret are configured, login uses HttpOnly cookie + Dynamo;
+   * tokens are not returned to the browser JSON (mitigates XSS reading localStorage).
+   */
+  cookieAppSessionEnabled:
+    envBool("COOKIE_APP_SESSION", false) &&
+    Boolean(envStr("DYNAMODB_SESSIONS_TABLE").trim()) &&
+    envStr("APP_SESSION_SECRET").length >= 16,
+  /** True when COOKIE_APP_SESSION is set but prerequisites are missing (see startup logs). */
+  cookieAppSessionMisconfigured:
+    envBool("COOKIE_APP_SESSION", false) &&
+    (!Boolean(envStr("DYNAMODB_SESSIONS_TABLE").trim()) || envStr("APP_SESSION_SECRET").length < 16),
   /** Optional — store feedback items for product review (partition key: id String). */
   feedbackTable: envStr("FEEDBACK_TABLE"),
   /** Region for DynamoDB table (defaults to AWS_REGION; can differ from Cognito pool region). */

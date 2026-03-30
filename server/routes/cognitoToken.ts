@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
 import { cognitoHostedUiDomainIssue, config } from "../config.js";
 import { logger } from "../logger.js";
+import { buildAppSessionSetCookie } from "./appSession.js";
+import { createServerAppSession } from "../session/resolveContext.js";
 
 /**
  * Exchange Cognito Hosted UI authorization code for tokens (confidential app client).
@@ -52,6 +54,22 @@ export async function postCognitoToken(req: Request, res: Response): Promise<voi
       logger.warn({ status: r.status, json }, "Cognito token exchange failed");
       res.status(r.status).json(json);
       return;
+    }
+    if (config.cookieAppSessionEnabled) {
+      try {
+        const sessionId = await createServerAppSession(json);
+        res.append("Set-Cookie", buildAppSessionSetCookie(sessionId, req));
+        res.json({ ok: true });
+        return;
+      } catch (e) {
+        logger.error({ err: e }, "Failed to create server session after Cognito exchange");
+        res.status(502).json({
+          error: "session_create_failed",
+          error_description:
+            "Could not create browser session. Ensure Cognito returns refresh_token and DYNAMODB_SESSIONS_TABLE is configured.",
+        });
+        return;
+      }
     }
     res.json(json);
   } catch (e) {

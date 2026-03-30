@@ -1,8 +1,8 @@
 import { appState } from "./app-state.js";
 import { mergeAppAuth } from "./authed-fetch.js";
-import { getCognitoAccessToken } from "./auth-session.js";
 import { OLLAMA_API_PATH, SAVED_LLM_KEY } from "./config.js";
 import {
+  apiUrl,
   ensurePublicConfig,
   getAppOrigin,
   getLlmProvider,
@@ -267,12 +267,15 @@ export async function generateGroceryList(): Promise<void> {
   try {
     await ensurePublicConfig();
     const pub = tryGetPublicConfig();
-    if (pub?.authRequired && !getCognitoAccessToken()) {
-      clearTimeout(slowHintId);
-      out.style.display = "none";
-      (btn as HTMLButtonElement).disabled = false;
-      alert("Sign in or create an account (buttons in the header) to generate a meal plan.");
-      return;
+    if (pub?.authRequired) {
+      const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+      if (!me.ok) {
+        clearTimeout(slowHintId);
+        out.style.display = "none";
+        (btn as HTMLButtonElement).disabled = false;
+        alert("Sign in or create an account (buttons in the header) to generate a meal plan.");
+        return;
+      }
     }
     const ollamaModel = getOllamaModel();
     modelHint = ollamaModel;

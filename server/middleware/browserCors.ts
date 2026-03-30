@@ -23,6 +23,7 @@ export function browserCorsMiddleware(req: Request, res: Response, next: NextFun
   const ok = Boolean(origin && allowedOrigins.has(normalized));
   if (ok && origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
     res.setHeader(
       "Access-Control-Allow-Headers",
       "Content-Type, Authorization, X-Kroger-Authorization, X-Cognito-Id-Token"

@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { resolveCognitoUserContext } from "../session/resolveContext.js";
 
 /** Optional Bearer verification for public routes (e.g. feedback). */
 export type CognitoBearerResolution =
@@ -11,7 +12,7 @@ export type CognitoBearerResolution =
 let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 let idTokenVerifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
 
-function getVerifier() {
+export function getAccessTokenVerifier() {
   if (!config.cognitoUserPoolId || !config.cognitoClientId) {
     return null;
   }
@@ -27,7 +28,7 @@ function getVerifier() {
 }
 
 /** ID tokens carry `email`; access tokens often do not — used only to enrich `req.appUserEmail`. */
-function getIdTokenVerifier() {
+export function getIdTokenVerifier() {
   if (!config.cognitoUserPoolId || !config.cognitoClientId) {
     return null;
   }
@@ -48,22 +49,20 @@ function headerString(req: Request, name: string): string {
 }
 
 /**
- * If no `Authorization` header → `missing`. If Bearer present but invalid → `invalid_token`.
- * Used when a route is public but should attribute submissions to Cognito `sub` when logged in.
+ * Bearer token or HttpOnly cookie session — same verification as protected routes.
+ * Missing both → `missing`. Invalid token → `invalid_token`.
  */
 export async function resolveCognitoBearerSub(req: Request): Promise<CognitoBearerResolution> {
-  const authHeader = req.headers.authorization || req.headers.Authorization;
-  const raw = typeof authHeader === "string" ? authHeader : Array.isArray(authHeader) ? authHeader[0] : "";
-  const m = raw.match(/^Bearer\s+(.+)$/i);
-  if (!m?.[1]?.trim()) {
-    return { ok: false, reason: "missing" };
-  }
-  const v = getVerifier();
+  const v = getAccessTokenVerifier();
   if (!v) {
     return { ok: false, reason: "invalid_config" };
   }
+  const ctx = await resolveCognitoUserContext(req);
+  if (!ctx?.accessToken) {
+    return { ok: false, reason: "missing" };
+  }
   try {
-    const payload = await v.verify(m[1]);
+    const payload = await v.verify(ctx.accessToken);
     const sub = typeof payload.sub === "string" ? payload.sub : "";
     if (!sub) return { ok: false, reason: "invalid_token" };
     return { ok: true, sub };
@@ -94,32 +93,35 @@ export async function cognitoAuthMiddleware(
     return;
   }
 
-  const v = getVerifier();
+  const v = getAccessTokenVerifier();
   if (!v) {
     logger.error("AUTH_REQUIRED but COGNITO_USER_POOL_ID / COGNITO_CLIENT_ID missing");
     res.status(503).json({ error: "Authentication not configured on server" });
     return;
   }
 
-  const authHeader = req.headers.authorization || req.headers.Authorization;
-  const raw = typeof authHeader === "string" ? authHeader : Array.isArray(authHeader) ? authHeader[0] : "";
-  const m = raw.match(/^Bearer\s+(.+)$/i);
-  if (!m || !m[1]) {
-    res.status(401).json({ error: "Unauthorized", error_description: "Missing Cognito Bearer token" });
-    return;
-  }
-
   try {
-    const payload = await v.verify(m[1]);
+    const ctx = await resolveCognitoUserContext(req);
+    if (!ctx) {
+      res.status(401).json({
+        error: "Unauthorized",
+        error_description: config.cookieAppSessionEnabled
+          ? "Missing or invalid session. Sign in again."
+          : "Missing Cognito Bearer token",
+      });
+      return;
+    }
+    const payload = await v.verify(ctx.accessToken);
     req.appUserId = typeof payload.sub === "string" ? payload.sub : "";
     req.appUsername =
       typeof (payload as { username?: string }).username === "string"
         ? (payload as { username?: string }).username
         : undefined;
-    /** Access token rarely includes `email`; prefer verified ID token below. */
     let email = typeof payload.email === "string" ? payload.email : undefined;
 
-    const idRaw = headerString(req, "x-cognito-id-token").replace(/^\s*Bearer\s+/i, "").trim();
+    const idRaw =
+      (ctx.idToken && ctx.idToken.trim()) ||
+      headerString(req, "x-cognito-id-token").replace(/^\s*Bearer\s+/i, "").trim();
     const idV = getIdTokenVerifier();
     if (idRaw && idV && req.appUserId) {
       try {

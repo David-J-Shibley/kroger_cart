@@ -17,6 +17,8 @@ export interface PublicConfig {
   /** When true, main page does not force redirect to login; header Sign in / Create account instead. */
   authAllowAnonymousBrowsing: boolean;
   subscriptionRequired: boolean;
+  /** Server stores Cognito tokens in Dynamo + HttpOnly cookie — use credentials on API fetches. */
+  cookieSessionAuth: boolean;
   /** Server set TEST=true — enables optional testing controls in the UI. */
   testMode: boolean;
 }
@@ -93,6 +95,7 @@ export async function ensurePublicConfig(): Promise<PublicConfig> {
     authRequired: Boolean(raw.authRequired),
     authAllowAnonymousBrowsing: Boolean(raw.authAllowAnonymousBrowsing),
     subscriptionRequired: Boolean(raw.subscriptionRequired),
+    cookieSessionAuth: Boolean(raw.cookieSessionAuth),
     testMode: Boolean(raw.testMode),
   };
   return cached;
