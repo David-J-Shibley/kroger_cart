@@ -92,13 +92,88 @@ body {
 .page-header-brand {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 8px 14px;
 }
 
 .page-header h1 {
   margin: 0;
   font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+/* —— Grocery Goblin brand —— */
+.app-brand-header {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1.2;
+}
+
+.app-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 10px;
+  outline-offset: 3px;
+}
+
+.app-brand:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.app-brand__mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.app-brand__mark--sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+
+.app-brand__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.app-brand__name {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.app-brand__tagline {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.78);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-brand__name--subpage {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.page-header-page-title {
+  margin: 0;
+  font-size: 1.25rem;
   font-weight: 600;
   color: #fff;
   letter-spacing: -0.02em;
@@ -114,6 +189,15 @@ body {
 
 .page-header .feedback-link:hover {
   color: #b8fcff;
+}
+
+.page-header .app-brand:hover .app-brand__name,
+.page-header .app-brand:hover .app-brand__name--subpage {
+  color: #b8fcff;
+}
+
+.page-header .app-brand:hover .app-brand__tagline {
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .account-app-bar {
@@ -1466,6 +1550,9 @@ body.landing-page {
 }
 
 .landing-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 1.0625rem;
   font-weight: 700;
   color: #fff;
@@ -1475,6 +1562,73 @@ body.landing-page {
 
 .landing-brand:hover {
   color: #b8fcff;
+}
+
+.landing-brand:hover .landing-brand__mark {
+  border-color: rgba(184, 252, 255, 0.45);
+}
+
+.landing-brand__mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.landing-brand__wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+}
+
+.landing-brand__title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.landing-brand__subtitle {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.landing-hero__logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  object-fit: cover;
+  margin-bottom: 14px;
+  border: 1px solid rgba(19, 27, 56, 0.12);
+  box-shadow: var(--shadow-md);
+}
+
+.app-footer__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 16px 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.app-footer__brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .landing-top__nav {
@@ -1761,6 +1915,14 @@ body.landing-page {
   text-align: center;
   font-size: 0.875rem;
   color: var(--text-muted);
+}
+
+.landing-footer__brand {
+  margin: 0 0 8px 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
 }
 
 .landing-footer a {

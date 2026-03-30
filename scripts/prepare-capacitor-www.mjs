@@ -18,6 +18,8 @@ const copyFromRoot = [
   "kroger-oauth-callback.html",
   "feedback.html",
   "admin.html",
+  "robots.txt",
+  "google25ceccb1f139df8.html",
 ];
 
 await fs.mkdir(www, { recursive: true });
@@ -64,6 +66,42 @@ if (apiOrigin) {
   } catch {
     /* absent */
   }
+}
+
+/** Public site URL for sitemap (https only), e.g. https://grocerygoblin.example.com */
+const sitePublicUrl = (process.env.SITE_PUBLIC_URL || "").trim().replace(/\/+$/, "");
+if (sitePublicUrl && /^https:\/\//i.test(sitePublicUrl)) {
+  const paths = [
+    "/",
+    "/index.html",
+    "/landing.html",
+    "/auth.html",
+    "/feedback.html",
+  ];
+  const today = new Date().toISOString().slice(0, 10);
+  const urlEntries = paths
+    .map(
+      (p) => `  <url>
+    <loc>${sitePublicUrl}${p === "/" ? "/" : p}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>${p === "/" ? "1.0" : "0.8"}</priority>
+  </url>`
+    )
+    .join("\n");
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urlEntries}
+</urlset>
+`;
+  await fs.writeFile(path.join(www, "sitemap.xml"), sitemap, "utf8");
+  const robotsBase = await fs.readFile(path.join(root, "robots.txt"), "utf8");
+  await fs.writeFile(
+    path.join(www, "robots.txt"),
+    `${robotsBase.trim()}\n\nSitemap: ${sitePublicUrl}/sitemap.xml\n`,
+    "utf8"
+  );
+  console.log(`Wrote sitemap.xml and Sitemap directive (SITE_PUBLIC_URL).`);
 }
 
 console.log(`Web bundle prepared in ${path.relative(root, www) || "."}/`);

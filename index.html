@@ -3,7 +3,9 @@
    <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meal Plan & Grocery List</title>
+    <title>Grocery Goblin — Meal plans &amp; Kroger cart</title>
+    <meta name="description" content="Grocery Goblin: AI meal plans, one smart grocery list, and Kroger search &amp; cart sync.">
+    <meta name="theme-color" content="#131b38">
     <link rel="icon" href="/icon.png" type="image/png" sizes="any">
     <link rel="apple-touch-icon" href="/icon.png">
     <link rel="stylesheet" href="kroger-cart.css">
@@ -12,7 +14,15 @@
     <header class="page-header">
       <div class="page-header-inner">
         <div class="page-header-brand">
-          <h1>Meal Plan & Grocery List</h1>
+          <h1 class="app-brand-header">
+            <a class="app-brand" href="/index.html" aria-label="Grocery Goblin — home">
+              <img class="app-brand__mark" src="/icon.png" alt="" width="40" height="40" decoding="async" />
+              <span class="app-brand__text">
+                <span class="app-brand__name">Grocery Goblin</span>
+                <span class="app-brand__tagline">Meal plans &amp; Kroger cart</span>
+              </span>
+            </a>
+          </h1>
           <a class="feedback-link" href="/feedback.html">Feedback</a>
           <a id="adminLink" class="feedback-link" href="/admin.html" style="display:none">Admin</a>
         </div>
@@ -28,7 +38,7 @@
     </header>
     <main class="main-content">
       <div id="authBrowseBanner" class="auth-browse-banner" role="status" hidden>
-        <p>You’re browsing as a guest. Sign in or create an account to generate meal plans, use Kroger search, and sync your cart.</p>
+        <p>You’re browsing <strong>Grocery Goblin</strong> as a guest. Sign in or create an account to generate meal plans, use Kroger search, and sync your cart.</p>
         <div class="auth-browse-banner__actions">
           <button type="button" class="btn-app-auth" onclick="goAppSignIn()">Sign in</button>
           <button type="button" class="btn-app-auth btn-app-auth--ghost" onclick="goAppSignUp()">Create account</button>
@@ -166,6 +176,10 @@
       <div class="app-footer__inner">
         <div class="app-footer__panel">
           <div class="app-footer__intro">
+            <div class="app-footer__brand">
+              <img class="app-footer__brand-icon" src="/icon.png" alt="" width="28" height="28" decoding="async" />
+              <span>Grocery Goblin</span>
+            </div>
             <h2 class="app-footer__title">Help &amp; tips</h2>
             <p class="app-footer__subtitle">Get oriented before you generate a list or add to cart.</p>
           </div>

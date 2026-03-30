@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meal Plan & Grocery List — Plan meals, build your list, shop Kroger</title>
-  <meta name="description" content="AI-assisted weekly meal plans, one consolidated grocery list, and Kroger search & cart sync.">
+  <title>Grocery Goblin — Meal plans, one list, shop Kroger</title>
+  <meta name="description" content="Grocery Goblin: AI-assisted meal plans, one consolidated grocery list, and Kroger search &amp; cart sync.">
+  <meta name="theme-color" content="#131b38">
   <link rel="icon" href="/icon.png" type="image/png" sizes="any">
   <link rel="apple-touch-icon" href="/icon.png">
   <link rel="stylesheet" href="kroger-cart.css">
@@ -22,7 +23,13 @@
 
   <header class="landing-top">
     <div class="landing-top__inner">
-      <a class="landing-brand" href="/">Meal Plan &amp; Grocery List</a>
+      <a class="landing-brand" href="/">
+        <img class="landing-brand__mark" src="/icon.png" alt="" width="36" height="36" decoding="async" />
+        <span class="landing-brand__wordmark">
+          <span class="landing-brand__title">Grocery Goblin</span>
+          <span class="landing-brand__subtitle">Meal plans &amp; Kroger cart</span>
+        </span>
+      </a>
       <nav class="landing-top__nav" aria-label="Account">
         <a class="landing-link" href="/feedback.html">Feedback</a>
         <a class="landing-btn landing-btn--ghost" href="/auth.html">Sign in</a>
@@ -33,7 +40,8 @@
 
   <main id="landing-main">
     <section class="landing-hero">
-      <p class="landing-eyebrow">Meal planning · Kroger</p>
+      <img class="landing-hero__logo" src="/icon.png" alt="" width="72" height="72" decoding="async" />
+      <p class="landing-eyebrow">Grocery Goblin · Meal planning &amp; Kroger</p>
       <h1 class="landing-hero__title">Turn a week of meals into one grocery list</h1>
       <p class="landing-hero__lead">
         Describe your household and preferences, generate a meal plan, get a single deduplicated shopping list,
@@ -78,6 +86,7 @@
   </main>
 
   <footer class="landing-footer">
+    <p class="landing-footer__brand">Grocery Goblin</p>
     <p><a href="/feedback.html">Feedback</a> · <a href="/index.html">Open app</a></p>
   </footer>
 

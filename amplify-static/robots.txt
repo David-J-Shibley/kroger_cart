@@ -1,0 +1,7 @@
+# Allow search engines to crawl public marketing and app shell pages.
+# Optional: set SITE_PUBLIC_URL when running `npm run cap:prepare` to emit sitemap.xml
+# and a Sitemap: line here in the output folder (www/ or AMPLIFY_WEB_ROOT).
+User-agent: *
+Allow: /
+
+# Do not rely on crawling for authenticated-only API routes — they are on another host.

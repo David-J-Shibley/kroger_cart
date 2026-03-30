@@ -13,7 +13,7 @@ const serverUrl = process.env.CAPACITOR_SERVER_URL?.trim();
 
 const config: CapacitorConfig = {
   appId: "com.openclaw.krogercart",
-  appName: "Kroger Cart",
+  appName: "Grocery Goblin",
   webDir: "www",
   server: {
     appStartPath: "/index.html",
