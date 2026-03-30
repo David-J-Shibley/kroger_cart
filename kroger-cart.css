@@ -518,6 +518,85 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-
   color: var(--text-muted);
 }
 
+.card--feedback {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(19, 27, 56, 0.1);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.99) 52%, rgba(252, 253, 255, 0.97) 100%),
+    linear-gradient(200deg, rgba(13, 242, 254, 0.07) 0%, transparent 44%),
+    linear-gradient(165deg, rgba(28, 203, 126, 0.06) 0%, transparent 48%);
+  box-shadow:
+    var(--shadow),
+    0 0 0 1px rgba(19, 27, 56, 0.04),
+    0 1px 0 rgba(255, 255, 255, 0.92) inset;
+}
+
+.card--feedback::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    rgba(13, 242, 254, 0.95) 0%,
+    var(--color-emerald) 48%,
+    rgba(254, 108, 85, 0.82) 100%
+  );
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.feedback-intro {
+  margin: 0 0 22px;
+  padding-top: 2px;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: #5c6a7d;
+}
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.feedback-form .btn-primary {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 12px 24px;
+  border-radius: var(--radius-pill);
+}
+
+.feedback-status {
+  margin-top: 20px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.feedback-status--success {
+  background: linear-gradient(135deg, rgba(28, 203, 126, 0.14) 0%, rgba(13, 242, 254, 0.09) 100%);
+  border: 1px solid rgba(28, 203, 126, 0.38);
+  color: var(--app-primary);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset;
+}
+
+.feedback-status--error {
+  background: linear-gradient(135deg, rgba(254, 108, 85, 0.1) 0%, rgba(254, 108, 85, 0.04) 100%);
+  border: 1px solid rgba(254, 108, 85, 0.45);
+  color: #9a3412;
+}
+
+body.feedback-page .main-content {
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .card--kroger {
   border-color: rgba(13, 242, 254, 0.4);
   background:
@@ -579,6 +658,13 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-
 .btn-primary:active {
   transform: translateY(1px);
   box-shadow: 0 1px 6px rgba(28, 203, 126, 0.25);
+}
+
+.btn-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
 }
 
 .btn-kroger-cta {
@@ -838,7 +924,9 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-
 }
 
 .meal-plan-row input[type="number"],
-.meal-plan-row textarea {
+.meal-plan-row input[type="email"],
+.meal-plan-row textarea,
+.meal-plan-row select {
   padding: 10px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -850,6 +938,18 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-
 
 .meal-plan-row input[type="number"] { max-width: 120px; }
 
+.meal-plan-row select {
+  cursor: pointer;
+  max-width: 100%;
+  appearance: none;
+  padding-right: 40px;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%234a5568' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
 .meal-plan-row textarea {
   resize: vertical;
   min-height: 72px;
@@ -857,7 +957,8 @@ h3 { font-size: 1.125rem; font-weight: 600; margin: 0 0 8px 0; color: var(--app-
 }
 
 .meal-plan-row input:focus,
-.meal-plan-row textarea:focus {
+.meal-plan-row textarea:focus,
+.meal-plan-row select:focus {
   outline: none;
   border-color: var(--color-teal);
   box-shadow: var(--focus-ring);

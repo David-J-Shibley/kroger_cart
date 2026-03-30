@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="/icon.png">
   <link rel="stylesheet" href="kroger-cart.css">
 </head>
-<body>
+<body class="feedback-page">
   <header class="page-header">
     <div class="page-header-inner">
       <div class="page-header-brand">
@@ -18,9 +18,9 @@
     </div>
   </header>
   <main class="main-content">
-    <div class="card">
-      <p class="help-text" style="margin-top:0">Suggestions, complaints, or questions — we read every submission.</p>
-      <form id="feedbackForm">
+    <div class="card card--feedback">
+      <p class="feedback-intro">Suggestions, complaints, or questions — we read every submission.</p>
+      <form id="feedbackForm" class="feedback-form">
         <div class="meal-plan-row">
           <label for="fbCategory">Type</label>
           <select id="fbCategory" name="category">
@@ -40,7 +40,7 @@
         </div>
         <button type="submit" class="btn-primary" id="fbSubmit">Send feedback</button>
       </form>
-      <p id="fbStatus" class="help-text" style="margin-top:16px" hidden></p>
+      <p id="fbStatus" class="feedback-status" role="status" aria-live="polite" hidden></p>
     </div>
   </main>
   <script src="api-host-bootstrap.js"></script>
@@ -58,6 +58,7 @@
       var st = document.getElementById("fbStatus");
       btn.disabled = true;
       st.hidden = true;
+      st.classList.remove("feedback-status--success", "feedback-status--error");
       try {
         var base = await window.krogerCartApiBase();
         var res = await fetch(base + "/api/feedback", {
@@ -72,19 +73,19 @@
         var data = await res.json().catch(function () { return {}; });
         if (!res.ok) {
           st.textContent = data.error || ("Error (" + res.status + ")");
+          st.classList.add("feedback-status--error");
           st.hidden = false;
-          st.style.color = "#b91c1c";
           btn.disabled = false;
           return;
         }
         st.textContent = "Thanks — we received your feedback.";
-        st.style.color = "";
+        st.classList.add("feedback-status--success");
         st.hidden = false;
         document.getElementById("feedbackForm").reset();
       } catch (err) {
         st.textContent = err.message || String(err);
+        st.classList.add("feedback-status--error");
         st.hidden = false;
-        st.style.color = "#b91c1c";
       }
       btn.disabled = false;
     });
