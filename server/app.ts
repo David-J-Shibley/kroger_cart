@@ -77,7 +77,7 @@ export function createApp(): express.Express {
   );
 
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, version: "1.0.0" });
+    res.json({ ok: true, version: "1.0.0", llmProvider: config.llmProvider });
   });
 
   const jsonBody = express.json({ limit: "100kb" });

@@ -54,6 +54,14 @@ function clearLegacyBrowserSecretsIfCookieSession(cookieSessionAuth) {
 function pageOrigin() {
   return typeof window !== "undefined" ? window.location.origin : "";
 }
+function normalizeApiOrigin(apiRaw, pageOriginFallback) {
+  let s = apiRaw.trim().replace(/\/$/, "");
+  if (!s) return pageOriginFallback || "";
+  if (/^https?:\/\//i.test(s)) return s;
+  const lower = s.toLowerCase();
+  const scheme = lower.startsWith("localhost") || lower.startsWith("127.0.0.1") || lower.startsWith("[::1]") ? "http://" : "https://";
+  return scheme + s.replace(/^\/+/, "");
+}
 function normalizeCognitoDomain(raw) {
   let s = String(raw).trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
   const slash = s.indexOf("/");
@@ -70,8 +78,10 @@ async function loadDeployConfig() {
     );
   }
   const raw = await res.json();
-  const apiRaw = typeof raw.apiOrigin === "string" ? raw.apiOrigin.trim().replace(/\/$/, "") : "";
-  backendOriginCache = apiRaw && /^https?:\/\//i.test(apiRaw) ? apiRaw : origin || "";
+  backendOriginCache = normalizeApiOrigin(
+    typeof raw.apiOrigin === "string" ? raw.apiOrigin : "",
+    origin
+  );
   const llmModel = String(raw.llmModel ?? raw.ollamaModel ?? "qwen3:8b").trim();
   const prov = String(raw.llmProvider ?? "").toLowerCase();
   const llmProvider = prov === "featherless" ? "featherless" : "ollama";
@@ -1429,6 +1439,30 @@ function initAutoCartPreferencesUi() {
 
 // client/grocery-generation.ts
 var BULK_ADD_DELAY_MS = 400;
+async function assertDeployMatchesApiLlmBackend() {
+  let r;
+  try {
+    r = await fetch(apiUrl("/api/health"), { cache: "no-store" });
+  } catch {
+    return;
+  }
+  if (!r.ok) return;
+  const j = await r.json();
+  const raw = j.llmProvider;
+  if (raw !== "featherless" && raw !== "ollama") return;
+  const server = raw;
+  const client = getLlmProvider();
+  if (server === client) return;
+  const api = getAppOrigin();
+  if (client === "featherless") {
+    throw new Error(
+      "This site is set to Featherless in deploy-config.json, but the API at " + api + ' reports "' + server + '". Set FEATHERLESS_API_KEY on the API server (and LLM_PROVIDER=featherless), restart, and try again. If you intend to use Ollama, set llmProvider to ollama in deploy-config.json.'
+    );
+  }
+  throw new Error(
+    "This site expects Ollama in deploy-config.json, but the API at " + api + ' reports "' + server + '". Set LLM_PROVIDER=ollama and point OLLAMA_ORIGIN at your Ollama instance, or set llmProvider to featherless in deploy-config to match the server.'
+  );
+}
 function getCheckedGroceryLinesFromDom() {
   const list = document.getElementById("generated-list");
   if (!list) return [];
@@ -1615,7 +1649,7 @@ async function generateGroceryList() {
   const slowHintId = setTimeout(() => {
     if (pre && pre.textContent === "Connecting...") {
       if (getLlmProvider() === "featherless") {
-        pre.textContent = "Connecting\u2026\n\nStill waiting? The server uses Featherless.ai \u2014 check FEATHERLESS_API_KEY, LLM_MODEL, and your plan limits. Docs: https://featherless.ai/docs/overview";
+        pre.textContent = "Connecting\u2026\n\nStill waiting? The API host (deploy-config apiOrigin) must have FEATHERLESS_API_KEY; llmProvider in deploy-config alone does not enable Featherless. Also verify LLM_MODEL on the server and your Featherless plan. Docs: https://featherless.ai/docs/overview";
       } else {
         pre.textContent = "Connecting\u2026\n\nTaking a while? If you're using Docker, pull the model first:\n  docker exec -it kroger-ollama ollama pull " + modelHint;
       }
@@ -1623,6 +1657,7 @@ async function generateGroceryList() {
   }, 15e3);
   try {
     await ensurePublicConfig();
+    await assertDeployMatchesApiLlmBackend();
     const pub = tryGetPublicConfig();
     if (pub?.authRequired) {
       const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));

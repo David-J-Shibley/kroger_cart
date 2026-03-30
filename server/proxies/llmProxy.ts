@@ -3,8 +3,14 @@ import { config } from "../config.js";
 import { handleFeatherlessChat } from "./featherlessChat.js";
 import { proxyOllamaRequest } from "./ollamaForward.js";
 
+/**
+ * CORS for /ollama-api. Do not overwrite `Access-Control-Allow-Origin` if `browserCorsMiddleware`
+ * already set it (Amplify UI + API on another host + cookies) — `*` is invalid with credentials.
+ */
 function setOllamaCors(res: Response): void {
-  res.set("Access-Control-Allow-Origin", "*");
+  if (!res.getHeader("Access-Control-Allow-Origin")) {
+    res.set("Access-Control-Allow-Origin", "*");
+  }
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Cognito-Id-Token");
 }

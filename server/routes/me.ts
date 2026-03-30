@@ -23,5 +23,7 @@ export async function getMe(req: Request, res: Response): Promise<void> {
     subscriptionStatus: user?.subscriptionStatus ?? "none",
     stripeCustomerId: user?.stripeCustomerId ?? null,
     krogerLinked,
+    /** Same as GET /api/health — helps the UI detect deploy-config vs server env mismatch. */
+    llmProvider: config.llmProvider,
   });
 }

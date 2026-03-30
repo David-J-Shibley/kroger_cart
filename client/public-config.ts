@@ -53,6 +53,21 @@ function pageOrigin(): string {
   return typeof window !== "undefined" ? window.location.origin : "";
 }
 
+/** `apiOrigin` must be an absolute URL; accept bare hostnames and add http/https. */
+function normalizeApiOrigin(apiRaw: string, pageOriginFallback: string): string {
+  let s = apiRaw.trim().replace(/\/$/, "");
+  if (!s) return pageOriginFallback || "";
+  if (/^https?:\/\//i.test(s)) return s;
+  const lower = s.toLowerCase();
+  const scheme =
+    lower.startsWith("localhost") ||
+    lower.startsWith("127.0.0.1") ||
+    lower.startsWith("[::1]")
+      ? "http://"
+      : "https://";
+  return scheme + s.replace(/^\/+/, "");
+}
+
 /** Match server `normalizeCognitoDomain` — Hosted UI host only (no https://, no path). */
 function normalizeCognitoDomain(raw: string): string {
   let s = String(raw).trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "");
@@ -77,9 +92,10 @@ export async function loadDeployConfig(): Promise<PublicConfig> {
     );
   }
   const raw = (await res.json()) as Record<string, unknown>;
-  const apiRaw = typeof raw.apiOrigin === "string" ? raw.apiOrigin.trim().replace(/\/$/, "") : "";
-  backendOriginCache =
-    apiRaw && /^https?:\/\//i.test(apiRaw) ? apiRaw : origin || "";
+  backendOriginCache = normalizeApiOrigin(
+    typeof raw.apiOrigin === "string" ? raw.apiOrigin : "",
+    origin
+  );
 
   const llmModel = String(raw.llmModel ?? raw.ollamaModel ?? "qwen3:8b").trim();
   const prov = String(raw.llmProvider ?? "").toLowerCase();

@@ -10,6 +10,27 @@ type OllamaStyleBody = {
   options?: { num_predict?: number };
 };
 
+/** OpenAI-style stream chunk: string content or array of { text } parts (newer APIs). */
+function extractDeltaText(chunk: unknown): string {
+  if (!chunk || typeof chunk !== "object") return "";
+  const choices = (chunk as { choices?: unknown }).choices;
+  if (!Array.isArray(choices) || !choices[0] || typeof choices[0] !== "object") return "";
+  const delta = (choices[0] as { delta?: unknown }).delta;
+  if (!delta || typeof delta !== "object") return "";
+  const c = (delta as { content?: unknown }).content;
+  if (typeof c === "string") return c;
+  if (Array.isArray(c)) {
+    let out = "";
+    for (const part of c) {
+      if (part && typeof part === "object" && typeof (part as { text?: string }).text === "string") {
+        out += (part as { text: string }).text;
+      }
+    }
+    return out;
+  }
+  return "";
+}
+
 /**
  * POST /api/chat — call Featherless OpenAI-compatible API and stream NDJSON chunks the browser client already parses (Ollama-shaped).
  * @see https://featherless.ai/docs/overview
@@ -96,6 +117,7 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
 
     const decoder = new TextDecoder();
     let sseBuffer = "";
+    let forwardedPieces = 0;
 
     try {
       while (true) {
@@ -106,16 +128,15 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
         sseBuffer = lines.pop() ?? "";
 
         for (const line of lines) {
-          const trimmed = line.trim();
+          const trimmed = line.replace(/\r$/, "").trim();
           if (!trimmed.startsWith("data:")) continue;
           const payload = trimmed.slice(5).trim();
           if (payload === "[DONE]") continue;
           try {
-            const chunk = JSON.parse(payload) as {
-              choices?: Array<{ delta?: { content?: string; role?: string } }>;
-            };
-            const piece = chunk.choices?.[0]?.delta?.content;
+            const chunk = JSON.parse(payload) as unknown;
+            const piece = extractDeltaText(chunk);
             if (typeof piece === "string" && piece.length > 0) {
+              forwardedPieces += 1;
               res.write(
                 JSON.stringify({
                   model,
@@ -131,6 +152,13 @@ export async function handleFeatherlessChat(req: Request, res: Response): Promis
       }
     } finally {
       reader.releaseLock?.();
+    }
+
+    if (forwardedPieces === 0) {
+      logger.warn(
+        { model },
+        "Featherless stream ended with no text deltas — check model id, API errors, or SSE format"
+      );
     }
 
     res.write(JSON.stringify({ model, done: true }) + "\n");

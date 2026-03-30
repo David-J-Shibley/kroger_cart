@@ -25,6 +25,45 @@ import { syncAddAllToCartToolbar } from "./auto-cart-ui.js";
 
 const BULK_ADD_DELAY_MS = 400;
 
+/**
+ * deploy-config `llmProvider` only affects UI copy; the API server decides Ollama vs Featherless.
+ * Fail fast when they disagree so we do not hang on an unreachable Ollama.
+ */
+async function assertDeployMatchesApiLlmBackend(): Promise<void> {
+  let r: Response;
+  try {
+    r = await fetch(apiUrl("/api/health"), { cache: "no-store" });
+  } catch {
+    return;
+  }
+  if (!r.ok) return;
+  const j = (await r.json()) as { llmProvider?: string };
+  const raw = j.llmProvider;
+  /** Old servers / cached health without this field — do not assume "ollama" or we false-positive and block Featherless. */
+  if (raw !== "featherless" && raw !== "ollama") return;
+  const server = raw;
+  const client = getLlmProvider();
+  if (server === client) return;
+  const api = getAppOrigin();
+  if (client === "featherless") {
+    throw new Error(
+      "This site is set to Featherless in deploy-config.json, but the API at " +
+        api +
+        ' reports "' +
+        server +
+        '". Set FEATHERLESS_API_KEY on the API server (and LLM_PROVIDER=featherless), restart, and try again. ' +
+        "If you intend to use Ollama, set llmProvider to ollama in deploy-config.json."
+    );
+  }
+  throw new Error(
+    'This site expects Ollama in deploy-config.json, but the API at ' +
+      api +
+      ' reports "' +
+      server +
+      '". Set LLM_PROVIDER=ollama and point OLLAMA_ORIGIN at your Ollama instance, or set llmProvider to featherless in deploy-config to match the server.'
+  );
+}
+
 function getCheckedGroceryLinesFromDom(): string[] {
   const list = document.getElementById("generated-list");
   if (!list) return [];
@@ -256,7 +295,7 @@ export async function generateGroceryList(): Promise<void> {
     if (pre && pre.textContent === "Connecting...") {
       if (getLlmProvider() === "featherless") {
         pre.textContent =
-          "Connecting…\n\nStill waiting? The server uses Featherless.ai — check FEATHERLESS_API_KEY, LLM_MODEL, and your plan limits. Docs: https://featherless.ai/docs/overview";
+          "Connecting…\n\nStill waiting? The API host (deploy-config apiOrigin) must have FEATHERLESS_API_KEY; llmProvider in deploy-config alone does not enable Featherless. Also verify LLM_MODEL on the server and your Featherless plan. Docs: https://featherless.ai/docs/overview";
       } else {
         pre.textContent =
           "Connecting…\n\nTaking a while? If you're using Docker, pull the model first:\n  docker exec -it kroger-ollama ollama pull " +
@@ -266,6 +305,7 @@ export async function generateGroceryList(): Promise<void> {
   }, 15000);
   try {
     await ensurePublicConfig();
+    await assertDeployMatchesApiLlmBackend();
     const pub = tryGetPublicConfig();
     if (pub?.authRequired) {
       const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
