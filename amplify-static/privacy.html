@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grocery Goblin — Privacy Policy</title>
+  <meta name="description" content="Privacy policy for Grocery Goblin.">
+  <meta name="theme-color" content="#131b38">
+  <link rel="icon" href="/icon.png" type="image/png" sizes="any">
+  <link rel="apple-touch-icon" href="/icon.png">
+  <link rel="stylesheet" href="kroger-cart.css">
+</head>
+<body class="legal-page">
+  <header class="page-header">
+    <div class="page-header-inner">
+      <div class="page-header-brand">
+        <a class="app-brand" href="/index.html" aria-label="Grocery Goblin — back to app">
+          <img class="app-brand__mark app-brand__mark--sm" src="/icon.png" alt="" width="34" height="34" decoding="async" />
+          <span class="app-brand__name app-brand__name--subpage">Grocery Goblin</span>
+        </a>
+        <h1 id="privacy-heading" class="page-header-page-title">Privacy Policy</h1>
+        <a class="feedback-link" href="/index.html">← Back to app</a>
+      </div>
+    </div>
+  </header>
+  <main class="main-content">
+    <article class="card card--feedback legal-doc" aria-labelledby="privacy-heading">
+      <p class="legal-doc__effective"><strong>Effective date:</strong> March 31, 2026</p>
+      <p>
+        This Privacy Policy describes how Grocery Goblin (“we,” “us,” or “our”) collects, uses, and shares information when you use our website, APIs, and related services (the “Service”). It should be read together with our <a href="/terms.html">Terms &amp; Conditions</a>.
+      </p>
+
+      <h2>1. Information we collect</h2>
+      <h3>1.1 Account and authentication</h3>
+      <p>
+        If you create or use an app account, we rely on <strong>Amazon Cognito</strong> (or similar identity providers we configure) for sign-in. We may process your Cognito user identifier (<code>sub</code>), email address, and username as provided by that system when you authenticate to our API.
+      </p>
+
+      <h3>1.2 Kroger connection</h3>
+      <p>
+        If you choose <strong>Sign in with Kroger</strong>, your browser completes OAuth with Kroger. Our servers may receive and use Kroger access tokens to call Kroger’s APIs on your behalf (for example, product search and cart actions). We do not control Kroger’s privacy practices; see Kroger’s policies for how they handle OAuth and account data.
+      </p>
+
+      <h3>1.3 Meal planning and AI</h3>
+      <p>
+        When you generate a meal plan or grocery list, the text you provide (preferences, dietary notes, and similar fields) is sent to our backend and forwarded to our <strong>AI inference provider</strong> (currently Featherless.ai or another model host we configure) to produce suggestions. Do not submit health information you consider highly sensitive unless you accept that it will be processed by those systems under their terms.
+      </p>
+
+      <h3>1.4 Payments and subscriptions</h3>
+      <p>
+        Paid features may be processed by <strong>Stripe</strong> (or, where applicable, Apple or Google in-app billing). We receive subscription status and billing-related identifiers needed to operate your account (for example, Stripe customer IDs linked to your app user id). We do not store full payment card numbers on our servers; card data is handled by the payment processor.
+      </p>
+
+      <h3>1.5 Usage, support, and feedback</h3>
+      <p>
+        If you submit <strong>feedback</strong> through our form, we collect the message, optional contact email, category, and technical metadata such as user-agent. If you are signed in, we may associate feedback with your Cognito <code>sub</code>. Feedback may be stored in our database (for example, AWS DynamoDB) when configured.
+      </p>
+      <p>
+        We may log <strong>aggregated or technical data</strong> (such as request paths, HTTP status, response times, and coarse usage for features like LLM daily caps) to operate and secure the Service. Server logs may include IP addresses.
+      </p>
+
+      <h3>1.6 Browser and device storage</h3>
+      <p>
+        The app stores certain preferences in your browser, such as meal-plan form defaults, optional Kroger store location overrides, and (depending on configuration) authentication tokens. When <strong>cookie-based sessions</strong> are enabled, session cookies may be used instead of keeping long-lived tokens only in browser storage.
+      </p>
+      <p>
+        A public configuration file (<code>deploy-config.json</code>) loaded by the site may list non-secret settings such as API base URLs and client identifiers required for OAuth; it does not contain your passwords or Kroger secrets.
+      </p>
+
+      <h2>2. How we use information</h2>
+      <p>We use the information above to:</p>
+      <ul>
+        <li>Provide, maintain, and improve the Service (including meal generation, Kroger search, and cart flows)</li>
+        <li>Authenticate you, enforce access rules, and prevent abuse</li>
+        <li>Process subscriptions and comply with tax or legal obligations where applicable</li>
+        <li>Respond to feedback and support requests</li>
+        <li>Monitor reliability, debug issues, and protect security</li>
+      </ul>
+
+      <h2>3. How we share information</h2>
+      <p>
+        We share information with <strong>service providers</strong> that help us run the Service, including hosting (for example, AWS), authentication (Cognito), payments (Stripe), AI inference (Featherless or other model APIs), and email or infrastructure vendors we use. They may process data only as needed to provide those services.
+      </p>
+      <p>
+        We may disclose information if required by law, legal process, or to protect the rights, safety, or security of users, the public, or the Service.
+      </p>
+      <p>
+        We do <strong>not</strong> sell your personal information as traditionally defined, and we do not share it for cross-context behavioral advertising as a business practice. If we ever offer choices required by applicable state laws (such as Colorado or California privacy laws), we will describe them here or in-product.
+      </p>
+
+      <h2>4. Retention</h2>
+      <p>
+        We retain information only as long as needed for the purposes above, including legal, accounting, and security requirements. Server logs and operational data are rotated or deleted on a schedule appropriate to our infrastructure. DynamoDB and similar stores retain records until deleted according to our practices or your account lifecycle.
+      </p>
+
+      <h2>5. Security</h2>
+      <p>
+        We use industry-standard measures appropriate to the nature of the Service (encryption in transit, access controls, and secure handling of secrets). No method of transmission or storage is completely secure.
+      </p>
+
+      <h2>6. Your choices and rights</h2>
+      <p>
+        Depending on where you live, you may have rights to access, correct, delete, or export certain personal information, or to opt out of certain processing. To exercise rights or ask questions, contact us using the method provided in the Service (for example, the <a href="/feedback.html">feedback form</a>). We may verify your request as permitted by law.
+      </p>
+      <p>
+        You can disconnect Kroger by signing out or revoking access in your Kroger account settings. You can clear browser storage for our site to remove locally saved preferences; that may sign you out of the app where tokens were stored locally.
+      </p>
+
+      <h2>7. Children</h2>
+      <p>
+        The Service is not directed to children under 13 (or the minimum age required in your jurisdiction), and we do not knowingly collect personal information from them. If you believe we have collected such information, contact us so we can delete it.
+      </p>
+
+      <h2>8. International users</h2>
+      <p>
+        We operate primarily in the United States. If you access the Service from elsewhere, your information may be processed in the U.S. or other countries where we or our vendors operate, which may have different data protection rules than your home country.
+      </p>
+
+      <h2>9. Changes to this policy</h2>
+      <p>
+        We may update this Privacy Policy from time to time. We will post the revised version on this page and update the effective date. For material changes, we will provide additional notice where practical.
+      </p>
+
+      <h2>10. Contact</h2>
+      <p>
+        For privacy-related questions, use the <a href="/feedback.html">feedback form</a> or the contact method we publish on the Service.
+      </p>
+    </article>
+  </main>
+</body>
+</html>

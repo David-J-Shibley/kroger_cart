@@ -18,6 +18,7 @@ const copyFromRoot = [
   "kroger-oauth-callback.html",
   "feedback.html",
   "terms.html",
+  "privacy.html",
   "admin.html",
   "robots.txt",
   "deploy-config.json",
@@ -79,6 +80,7 @@ if (sitePublicUrl && /^https:\/\//i.test(sitePublicUrl)) {
     "/auth.html",
     "/feedback.html",
     "/terms.html",
+    "/privacy.html",
   ];
   const today = new Date().toISOString().slice(0, 10);
   const urlEntries = paths

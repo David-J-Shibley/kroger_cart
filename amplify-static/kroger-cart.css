@@ -66,6 +66,11 @@ body {
   flex-direction: column;
 }
 
+/* Main app (index): wider layout + two columns on large screens */
+body.app-page {
+  max-width: 1100px;
+}
+
 .page-header {
   background:
     linear-gradient(180deg, rgba(13, 242, 254, 0.12) 0%, transparent 42%),
@@ -242,6 +247,157 @@ body {
 .main-content {
   flex: 1 0 auto;
   padding: 22px 24px 28px;
+}
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Mobile / tablet: shopping setup before meal plan (sign-in & cart prefs first) */
+.app-layout__aside {
+  order: -1;
+}
+
+.app-layout__primary {
+  order: 1;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .app-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
+    gap: 24px 28px;
+    align-items: start;
+  }
+
+  .app-layout__aside {
+    order: 0;
+  }
+
+  .app-layout__primary {
+    order: 0;
+    grid-column: 1;
+  }
+
+  .app-layout__aside {
+    grid-column: 2;
+  }
+
+  .app-aside__sticky {
+    position: sticky;
+    top: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .app-layout__aside .card {
+    margin-bottom: 0;
+  }
+}
+
+/* Native disclosure blocks (store URL, auto-cart hint, footer help) */
+.app-disclosure {
+  margin-top: 14px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(19, 27, 56, 0.1);
+  background: rgba(255, 255, 255, 0.65);
+  overflow: hidden;
+}
+
+.app-disclosure--hint {
+  margin-top: 8px;
+  border-style: dashed;
+}
+
+.app-disclosure__summary {
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--app-primary);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.app-disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-disclosure__summary::before {
+  content: "";
+  display: inline-block;
+  width: 0.35em;
+  height: 0.35em;
+  margin-right: 0.5em;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  vertical-align: 0.15em;
+  opacity: 0.75;
+}
+
+.app-disclosure[open] > .app-disclosure__summary::before {
+  transform: rotate(45deg);
+  vertical-align: 0.05em;
+}
+
+.app-disclosure__summary--muted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.app-disclosure__body {
+  padding: 0 12px 12px;
+  border-top: 1px solid rgba(19, 27, 56, 0.06);
+}
+
+.app-disclosure--hint .app-disclosure__body {
+  border-top: none;
+  padding-top: 0;
+}
+
+.app-disclosure__hint-text {
+  margin: 0 0 4px;
+  padding: 0 4px 8px;
+}
+
+.app-disclosure__body .kroger-store-location {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: none;
+}
+
+.app-footer__collapsible {
+  margin: 0 0 16px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(19, 27, 56, 0.1);
+  background: rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+}
+
+.app-footer__collapsible-summary {
+  padding: 12px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--app-primary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.app-footer__collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.app-footer__collapsible[open] .app-footer__collapsible-summary {
+  border-bottom: 1px solid rgba(19, 27, 56, 0.08);
+}
+
+.app-footer__collapsible .app-footer__tips {
+  padding: 12px 10px 4px;
 }
 
 .app-footer {
@@ -733,6 +889,14 @@ body.legal-page .main-content {
   letter-spacing: -0.02em;
 }
 
+.legal-doc h3 {
+  margin: 1rem 0 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
 .legal-doc p {
   margin: 0 0 0.75rem;
   font-size: 0.875rem;
@@ -867,7 +1031,7 @@ body.legal-page .main-content {
   border-top: 1px solid rgba(19, 27, 56, 0.1);
 }
 
-.kroger-store-location label {
+.kroger-store-location__field-label {
   display: block;
   font-size: 0.8125rem;
   font-weight: 600;

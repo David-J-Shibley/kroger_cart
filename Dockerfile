@@ -12,7 +12,7 @@ RUN npm ci
 COPY server.ts tsconfig.json tsconfig.client.json ./
 COPY server ./server/
 COPY client ./client/
-COPY index.html landing.html icon.png kroger-cart.css api-host-bootstrap.js kroger-oauth-callback.html auth.html auth-callback.html feedback.html terms.html admin.html robots.txt deploy-config.json ./
+COPY index.html landing.html icon.png kroger-cart.css api-host-bootstrap.js kroger-oauth-callback.html auth.html auth-callback.html feedback.html terms.html privacy.html admin.html robots.txt deploy-config.json ./
 
 RUN npm run build:client
 

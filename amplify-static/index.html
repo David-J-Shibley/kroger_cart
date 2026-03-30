@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="/icon.png">
     <link rel="stylesheet" href="kroger-cart.css">
   </head>
-   <body>
+   <body class="app-page">
     <header class="page-header">
       <div class="page-header-inner">
         <div class="page-header-brand">
@@ -46,47 +46,9 @@
         </div>
       </div>
       <p id="bootError" class="boot-error" hidden></p>
-      <div class="card card--kroger">
-        <h2 class="card__title">Kroger</h2>
-        <p id="krogerCardLead" class="card__lead">Connect your Kroger account to search products and sync your cart.</p>
-        <p id="krogerSignInStatus" class="card__actions">
-             <button type="button" id="krogerSignInBtn" class="btn btn-kroger-cta" onclick="signInWithKroger()">Sign in with Kroger</button>
-             <span id="krogerSignedIn" style="display:none;">Signed in. <button type="button" onclick="signOutKroger()">Sign out</button></span>
-         </p>
-         <div class="kroger-store-location" id="krogerStoreLocationBlock">
-           <label for="krogerStoreUrlInput">Store for search &amp; prices</label>
-           <p class="kroger-store-location__lead">Paste a store’s page URL from kroger.com — we use the id at the end of the address (e.g. …/014/<strong>00513</strong>).</p>
-           <div class="kroger-store-location__row">
-             <input type="text" id="krogerStoreUrlInput" class="kroger-store-location__input" autocomplete="off" placeholder="https://www.kroger.com/stores/grocery/…" />
-             <button type="button" id="krogerStoreApplyBtn" class="kroger-store-location__apply">Apply</button>
-           </div>
-           <p id="krogerLocationStatus" class="kroger-location-status" role="status"></p>
-           <button type="button" id="krogerStoreClearBtn" class="kroger-store-location__clear" hidden>Clear saved store</button>
-         </div>
-       </div>
 
-       <div class="card card--auto-cart" id="autoCartCard">
-         <h2 class="card__title">Automatic add to cart</h2>
-         <p class="card__lead">When Kroger returns several matches for a grocery line, skip the chooser and add one item using the rule you pick below. (You can still open the chooser by turning this off.) <strong>Experimental:</strong> auto-pick uses simple text heuristics on Kroger’s titles, not nutrition data or your real preferences—double-check important items.</p>
-         <div class="auto-cart-controls">
-           <label class="auto-cart-toggle">
-             <input type="checkbox" id="autoAddToCartEnabled" />
-             <span>Automatically pick a product</span>
-           </label>
-           <div class="auto-cart-strategy-row">
-             <label for="autoAddToCartStrategy">Selection rule</label>
-             <select id="autoAddToCartStrategy" aria-describedby="autoCartStrategyHint">
-               <option value="default">Top search result (Kroger order)</option>
-               <option value="cheapest">Cheapest (lowest listed price)</option>
-               <option value="premium">Premium (highest listed price)</option>
-               <option value="healthiest">Healthiest signals (organic, whole grain, low sodium, etc.)</option>
-               <option value="organic_first">Prefer organic, then health signals</option>
-               <option value="store_brand">Prefer store brand (Simple Truth, Private Selection, Kroger…)</option>
-             </select>
-           </div>
-           <p id="autoCartStrategyHint" class="auto-cart-hint">Cheapest and premium first prefer listings whose titles align with your search line and lightly down-rank obvious flavor variants you didn’t mention (still imperfect). “Healthiest” scores names and metadata for keywords like organic, non-GMO, and whole grain—it’s a heuristic, not medical advice.</p>
-         </div>
-       </div>
+      <div class="app-layout">
+        <div class="app-layout__primary">
 
        <div id="productPickerModal" class="modal-overlay hidden" aria-hidden="true" onclick="if(event.target===this)closeProductPicker()">
            <div class="modal-box" onclick="event.stopPropagation()">
@@ -185,6 +147,62 @@
                </div>
              </div>
            </div>
+        </div>
+        </div>
+
+        <aside class="app-layout__aside" aria-label="Shopping setup">
+          <div class="app-aside__sticky">
+            <div class="card card--kroger">
+              <h2 class="card__title">Kroger</h2>
+              <p id="krogerCardLead" class="card__lead">Connect your Kroger account to search products and sync your cart.</p>
+              <p id="krogerSignInStatus" class="card__actions">
+                <button type="button" id="krogerSignInBtn" class="btn btn-kroger-cta" onclick="signInWithKroger()">Sign in with Kroger</button>
+                <span id="krogerSignedIn" style="display:none;">Signed in. <button type="button" onclick="signOutKroger()">Sign out</button></span>
+              </p>
+              <details class="app-disclosure app-disclosure--kroger-store">
+                <summary class="app-disclosure__summary">Store location <span class="optional">(optional)</span></summary>
+                <div class="app-disclosure__body">
+                  <div class="kroger-store-location" id="krogerStoreLocationBlock">
+                    <label for="krogerStoreUrlInput" class="kroger-store-location__field-label">Store URL or numeric id</label>
+                    <p class="kroger-store-location__lead">From kroger.com, we take the last number in the path (e.g. …/014/<strong>00513</strong>).</p>
+                    <div class="kroger-store-location__row">
+                      <input type="text" id="krogerStoreUrlInput" class="kroger-store-location__input" autocomplete="off" placeholder="https://www.kroger.com/stores/grocery/…" />
+                      <button type="button" id="krogerStoreApplyBtn" class="kroger-store-location__apply">Apply</button>
+                    </div>
+                    <p id="krogerLocationStatus" class="kroger-location-status" role="status"></p>
+                    <button type="button" id="krogerStoreClearBtn" class="kroger-store-location__clear" hidden>Clear saved store</button>
+                  </div>
+                </div>
+              </details>
+            </div>
+
+            <div class="card card--auto-cart" id="autoCartCard">
+              <h2 class="card__title">Auto-add to cart</h2>
+              <p class="card__lead">When several products match a line, optionally pick one automatically using a simple rule. <strong>Experimental</strong> — verify important items.</p>
+              <div class="auto-cart-controls">
+                <label class="auto-cart-toggle">
+                  <input type="checkbox" id="autoAddToCartEnabled" />
+                  <span>Automatically pick a product</span>
+                </label>
+                <div class="auto-cart-strategy-row">
+                  <label for="autoAddToCartStrategy">Selection rule</label>
+                  <select id="autoAddToCartStrategy" aria-describedby="autoCartStrategyHint">
+                    <option value="default">Top search result (Kroger order)</option>
+                    <option value="cheapest">Cheapest (lowest listed price)</option>
+                    <option value="premium">Premium (highest listed price)</option>
+                    <option value="healthiest">Healthiest signals (organic, whole grain, low sodium, etc.)</option>
+                    <option value="organic_first">Prefer organic, then health signals</option>
+                    <option value="store_brand">Prefer store brand (Simple Truth, Private Selection, Kroger…)</option>
+                  </select>
+                </div>
+                <details class="app-disclosure app-disclosure--hint">
+                  <summary class="app-disclosure__summary app-disclosure__summary--muted">How rules work</summary>
+                  <p id="autoCartStrategyHint" class="auto-cart-hint app-disclosure__hint-text">Cheapest and premium first prefer listings whose titles align with your search line and lightly down-rank obvious flavor variants you didn’t mention (still imperfect). “Healthiest” scores names and metadata for keywords like organic, non-GMO, and whole grain—it’s a heuristic, not medical advice.</p>
+                </details>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </main>
 
@@ -200,6 +218,8 @@
             <p class="app-footer__subtitle">Get oriented before you generate a list or add to cart.</p>
           </div>
 
+          <details class="app-footer__collapsible">
+            <summary class="app-footer__collapsible-summary">Show help topics</summary>
           <div class="app-footer__tips">
             <div class="app-footer__tip">
               <div class="app-footer__tip-icon app-footer__tip-icon--teal" aria-hidden="true">
@@ -229,6 +249,7 @@
               </div>
             </div>
           </div>
+          </details>
 
           <nav class="app-footer__actions" aria-label="Quick links">
             <a class="app-footer__btn app-footer__btn--primary" href="/feedback.html">Send feedback</a>
@@ -237,6 +258,8 @@
 
           <p class="app-footer__legal">
             <a href="/terms.html">Terms &amp; Conditions</a>
+            <span class="app-footer__legal-sep" aria-hidden="true">·</span>
+            <a href="/privacy.html">Privacy</a>
             <span class="app-footer__legal-sep" aria-hidden="true">·</span>
             Not affiliated with The Kroger Co. Kroger is a trademark of its owner.
           </p>
