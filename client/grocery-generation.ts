@@ -224,7 +224,7 @@ export function renderGeneratedResult(text: string): void {
   if (Array.isArray(plan?.days)) {
     renderMealRegenerateControls(plan);
   } else {
-    renderMealRegenerateControls(getMessageText(plan as { message: string }));
+    renderMealRegenerateControls(getMessageText(plan as { message: { content: string } }));
   }
   const items = ingredientLines;
   if (items.length) {
