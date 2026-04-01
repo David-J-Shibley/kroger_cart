@@ -99,15 +99,23 @@ async function runMealPlanJob(job: MealPlanJob): Promise<void> {
     }
 
     const raw = await response.text();
-    // Featherless non-stream: either raw JSON with message/content or plain text.
-    let text = raw.trim();
-    try {
-      const obj = JSON.parse(raw) as { message?: { content?: string } };
-      if (obj?.message?.content) text = obj.message.content;
-    } catch {
-      /* raw is already text */
+    let text = "";
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const obj = JSON.parse(trimmed) as { message?: { content?: string }; error?: string };
+        if (obj.error) {
+          throw new Error(obj.error);
+        }
+        if (obj.message?.content) {
+          text += obj.message.content;
+        }
+      } catch {
+        // ignore lines that aren't JSON
+      }
     }
-
+    
     job.status = "succeeded";
     job.resultText = text;
     job.updatedAt = new Date().toISOString();
