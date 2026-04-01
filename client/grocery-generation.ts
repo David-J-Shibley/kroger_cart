@@ -111,6 +111,9 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
     const planMatch = afterPlan.match(/^[ \t]*\r?\n?([\s\S]+)$/);
     const planRaw = planMatch ? planMatch[1].trim() : afterPlan.trim();
     try {
+      // Debug: log the raw PLAN_JSON block we are about to parse.
+      // eslint-disable-next-line no-console
+      console.log("PLAN_JSON raw block:", planRaw);
       const parsedPlan = JSON.parse(planRaw) as PlanJsonRoot;
       // Debug: inspect parsed PLAN_JSON to harden client behavior if needed.
       // eslint-disable-next-line no-console
