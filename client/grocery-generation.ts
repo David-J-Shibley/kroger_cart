@@ -1,4 +1,3 @@
-import { appState } from "./app-state.js";
 import { mergeAppAuth } from "./authed-fetch.js";
 import { SAVED_LLM_KEY } from "./config.js";
 import {
@@ -21,6 +20,7 @@ import { showBulkAddKrogerFollowup } from "./kroger-app-launch.js";
 import { searchAndAddToCart } from "./add-to-cart.js";
 import { getAutoAddEnabled } from "./auto-cart-prefs.js";
 import { syncAddAllToCartToolbar } from "./auto-cart-ui.js";
+import { AppState } from "./app-state.js";
 
 const BULK_ADD_DELAY_MS = 400;
 
@@ -54,6 +54,8 @@ interface PlanJsonRoot {
   days?: PlanJsonDay[];
   grocery?: IngredientsJsonPayload;
 }
+
+const appState = new AppState();
 
 function extractIngredientLinesFromText(text: string): { lines: string[]; displayText: string } {
   const ingMarker = "INGREDIENTS_JSON:";
@@ -118,7 +120,7 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
       // Debug: inspect parsed PLAN_JSON to harden client behavior if needed.
       // eslint-disable-next-line no-console
       console.log("Parsed PLAN_JSON:", parsedPlan);
-      appState.mealPlanJson = parsedPlan;
+      appState.setState({ mealPlanJson: parsedPlan });
       // If we didn't get ingredient lines from INGREDIENTS_JSON, try grocery.ingredients in PLAN_JSON.
       if (!ingredientLines && parsedPlan?.grocery?.ingredients) {
         const labels: string[] = [];
@@ -227,14 +229,14 @@ async function bulkAddGroceryLines(lines: string[]): Promise<{ added: number; fa
 }
 
 export function renderGeneratedResult(text: string): void {
-  appState.lastGeneratedText = text;
+  appState.setState({ lastGeneratedText: text });
   const out = document.getElementById("generated");
   const cartSection = document.getElementById("add-to-cart-section");
   const listEl = document.getElementById("generated-list");
   if (!out || !cartSection || !listEl) return;
   out.style.display = "block";
   const { lines: ingredientLines, displayText } = extractIngredientLinesFromText(text);
-  appState.generatedDisplayText = displayText;
+  appState.setState({ generatedDisplayText: displayText });
   out.innerHTML =
     '<pre class="generated-text">' +
     escapeHtml(displayText) +
@@ -273,7 +275,7 @@ function renderMealRegenerateControls(): void {
   const container = document.getElementById("mealRegenerateList");
   console.log("container", container);
   if (!container) return;
-  const plan = appState.mealPlanJson as PlanJsonRoot | null;
+  const plan = appState.getState().mealPlanJson as PlanJsonRoot | null;
   console.log("plan", plan);
   if (!plan || !Array.isArray(plan.days) || !plan.days.length) {
     container.innerHTML = "";
@@ -318,7 +320,7 @@ function renderMealRegenerateControls(): void {
 
 export function regenerateMealByDishId(dishId: string): void {
   if (!dishId) return;
-  const plan = appState.mealPlanJson as PlanJsonRoot | null;
+  const plan = appState.getState().mealPlanJson as PlanJsonRoot | null;
   if (!plan || !Array.isArray(plan.days)) {
     alert("Meal plan details are not available yet. Generate a plan first.");
     return;
@@ -327,7 +329,7 @@ export function regenerateMealByDishId(dishId: string): void {
 }
 
 async function doRegenerateMealByDishId(dishId: string): Promise<void> {
-  const plan = appState.mealPlanJson as PlanJsonRoot | null;
+  const plan = appState.getState().mealPlanJson as PlanJsonRoot | null;
   if (!plan) {
     alert("Meal plan details are not available yet. Generate a plan first.");
     return;
@@ -412,12 +414,12 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
       return;
     }
 
-    appState.mealPlanJson = updatedPlan;
+    appState.setState({ mealPlanJson: updatedPlan });
 
     const groceryIngredients = updatedPlan.grocery?.ingredients ?? [];
     const ingredientsJson = JSON.stringify({ ingredients: groceryIngredients });
     const baseText =
-      appState.generatedDisplayText || appState.lastGeneratedText || appState.lastGeneratedText;
+      appState.getState().generatedDisplayText || appState.getState().lastGeneratedText || appState.getState().lastGeneratedText;
     const newText =
       baseText +
       "\n\nINGREDIENTS_JSON:\n" +
@@ -437,9 +439,9 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
 }
 
 export function saveLLMToStorage(): void {
-  if (!appState.lastGeneratedText) return;
+  if (!appState.getState().lastGeneratedText) return;
   try {
-    localStorage.setItem(SAVED_LLM_KEY, appState.lastGeneratedText);
+    localStorage.setItem(SAVED_LLM_KEY, appState.getState().lastGeneratedText ?? "");
     const loadBtn = document.getElementById("loadSavedBtn");
     if (loadBtn) loadBtn.style.display = "";
     alert('Saved. Use "Load saved" to restore without calling the LLM.');
@@ -467,7 +469,7 @@ export function loadExampleMealPlan(): void {
 }
 
 export async function copyGroceryListToClipboard(): Promise<void> {
-  const { lines } = extractIngredientLinesFromText(appState.lastGeneratedText);
+  const { lines } = extractIngredientLinesFromText(appState.getState().lastGeneratedText ?? "");
   if (!lines.length) {
     alert("No grocery list to copy. Generate a list first.");
     return;
@@ -524,7 +526,7 @@ export async function addAllGroceryToCart(): Promise<void> {
     );
     return;
   }
-  const { lines } = extractIngredientLinesFromText(appState.lastGeneratedText);
+  const { lines } = extractIngredientLinesFromText(appState.getState().lastGeneratedText ?? "");
   if (!lines.length) {
     alert("No grocery lines to add. Generate a list first.");
     return;
