@@ -426,6 +426,77 @@ body.app-page {
   color: var(--app-primary);
 }
 
+/* Jobs page */
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jobs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 6px;
+  border-bottom: 1px solid rgba(19, 27, 56, 0.06);
+}
+
+.jobs-row:last-child {
+  border-bottom: none;
+}
+
+.jobs-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jobs-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+}
+
+.jobs-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.jobs-error {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #b3261e;
+}
+
+.jobs-actions .btn {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+}
+
+.badge-success {
+  background-color: #0f9d58;
+  color: #fff;
+}
+
+.badge-error {
+  background-color: #b3261e;
+  color: #fff;
+}
+
+.badge-muted {
+  background-color: #e5e7f0;
+  color: #374151;
+}
+
 .meal-regenerate-day {
   margin-top: 8px;
 }

@@ -63,6 +63,23 @@ export function getMealPlanJob(req: Request, res: Response): void {
   });
 }
 
+export function listMealPlanJobs(req: Request, res: Response): void {
+  const userId = (req as any).appUserId ?? (req as any).user?.id ?? "anonymous";
+  const all = Array.from(jobs.values())
+    .filter((j) => j.userId === userId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  res.json(
+    all.map((j) => ({
+      jobId: j.id,
+      status: j.status,
+      createdAt: j.createdAt,
+      updatedAt: j.updatedAt,
+      prefs: j.prefs,
+      error: j.status === "failed" ? j.error : undefined,
+    }))
+  );
+}
+
 async function runMealPlanJob(job: MealPlanJob): Promise<void> {
   job.status = "running";
   job.updatedAt = new Date().toISOString();

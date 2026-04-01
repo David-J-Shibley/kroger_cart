@@ -34,9 +34,9 @@ import {
   postSyncCheckoutSession,
 } from "./routes/billing.js";
 import { oauthRootRedirectShim } from "./routes/oauthRootShim.js";
+import { listMealPlanJobs, postMealPlanJob, getMealPlanJob } from "./routes/mealPlanJobs.js";
 import { postFeedback } from "./routes/feedback.js";
 import { browserCorsMiddleware } from "./middleware/browserCors.js";
-import { postMealPlanJob, getMealPlanJob } from "./routes/mealPlanJobs.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,6 +109,9 @@ export function createApp(): express.Express {
   api.post("/billing/checkout-session", postCheckoutSession);
   api.post("/billing/sync-checkout", postSyncCheckoutSession);
   api.post("/billing/portal", postBillingPortal);
+  api.post("/meal-plan-jobs", postMealPlanJob);
+  api.get("/meal-plan-jobs", listMealPlanJobs);
+  api.get("/meal-plan-jobs/:jobId", getMealPlanJob);
   api.post("/meal-plan-jobs", postMealPlanJob);
   api.get("/meal-plan-jobs/:jobId", getMealPlanJob);
   app.use("/api", api);

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grocery Goblin — Meal plan jobs</title>
+    <link rel="stylesheet" href="kroger-cart.css" />
+  </head>
+  <body class="app-page">
+    <header class="page-header">
+      <div class="page-header-inner">
+        <div class="page-header-brand">
+          <h1 class="app-brand-header">
+            <a class="app-brand" href="/index.html" aria-label="Grocery Goblin — home">
+              <img class="app-brand__mark" src="/icon.png" alt="" width="40" height="40" decoding="async" />
+              <span class="app-brand__text">
+                <span class="app-brand__name">Grocery Goblin</span>
+                <span class="app-brand__tagline">Meal plans &amp; Kroger cart</span>
+              </span>
+            </a>
+          </h1>
+          <a class="feedback-link" href="/feedback.html">Feedback</a>
+          <a id="adminLink" class="feedback-link" href="/admin.html" style="display:none">Admin</a>
+        </div>
+      </div>
+    </header>
+    <main class="main-content">
+      <div class="app-layout">
+        <div class="app-layout__primary">
+          <section class="section">
+            <h3>Meal plan jobs</h3>
+            <p class="app-footer__subtitle">
+              View meal plans you’ve queued recently. You can open a finished plan or watch one in progress.
+            </p>
+            <div id="jobsStatus" class="meal-regenerate-status" aria-live="polite"></div>
+            <div id="jobsList" class="card card--auto-cart" style="margin-top: 12px;">
+              <div class="card__body">
+                <p>Loading jobs…</p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <script type="module">
+      async function fetchJobs() {
+        const statusEl = document.getElementById("jobsStatus");
+        const listEl = document.getElementById("jobsList");
+        if (!listEl) return;
+        try {
+          statusEl.textContent = "Loading jobs…";
+          const res = await fetch("/api/meal-plan-jobs", { method: "GET", credentials: "include" });
+          if (!res.ok) {
+            const body = await res.text();
+            listEl.innerHTML =
+              '<div class="card__body"><p>Failed to load jobs (HTTP ' +
+              res.status +
+              ').</p><pre>' +
+              body +
+              "</pre></div>";
+            statusEl.textContent = "";
+            return;
+          }
+          const jobs = await res.json();
+          if (!Array.isArray(jobs) || !jobs.length) {
+            listEl.innerHTML =
+              '<div class="card__body"><p>No recent meal plan jobs. Generate a plan from the home page to see it here.</p></div>';
+            statusEl.textContent = "";
+            return;
+          }
+          const rows = jobs.map((job) => {
+            const status = job.status;
+            const created = job.createdAt ? new Date(job.createdAt).toLocaleString() : "";
+            const people = job.prefs?.people ?? "?";
+            const days = job.prefs?.days ?? "?";
+            const meals = [
+              job.prefs?.includeBreakfast ? "Breakfast" : null,
+              job.prefs?.includeLunch ? "Lunch" : null,
+              job.prefs?.includeDinner ? "Dinner" : null,
+            ]
+              .filter(Boolean)
+              .join(", ");
+            const statusLabel =
+              status === "succeeded"
+                ? "Succeeded"
+                : status === "failed"
+                ? "Failed"
+                : status === "running"
+                ? "Running"
+                : "Pending";
+            const statusClass =
+              status === "succeeded"
+                ? "badge-success"
+                : status === "failed"
+                ? "badge-error"
+                : "badge-muted";
+            const error =
+              status === "failed" && typeof job.error === "string" && job.error.trim()
+                ? '<div class="jobs-error">Error: ' + job.error + "</div>"
+                : "";
+            const openHref = "/index.html#job=" + encodeURIComponent(job.jobId);
+            return (
+              '<div class="jobs-row">' +
+              '<div class="jobs-main">' +
+              '<div class="jobs-title"><span class="badge ' +
+              statusClass +
+              '">' +
+              statusLabel +
+              "</span>" +
+              "<span> Job " +
+              job.jobId +
+              "</span></div>" +
+              '<div class="jobs-meta">' +
+              "<span>" +
+              created +
+              "</span> · <span>" +
+              people +
+              " people · " +
+              days +
+              " days</span> · <span>" +
+              meals +
+              "</span>" +
+              "</div>" +
+              error +
+              "</div>" +
+              '<div class="jobs-actions">' +
+              (status === "succeeded"
+                ? '<a class="btn btn-kroger-cta" href="' +
+                  openHref +
+                  '">Open plan</a>'
+                : "") +
+              "</div>" +
+              "</div>"
+            );
+          });
+          listEl.innerHTML = '<div class="card__body jobs-list">' + rows.join("") + "</div>";
+          statusEl.textContent = "";
+        } catch (e) {
+          const listEl = document.getElementById("jobsList");
+          if (listEl) {
+            listEl.innerHTML =
+              '<div class="card__body"><p>Failed to load jobs.</p><pre>' +
+              (e instanceof Error ? e.message : String(e)) +
+              "</pre></div>";
+          }
+          const statusEl = document.getElementById("jobsStatus");
+          if (statusEl) statusEl.textContent = "";
+        }
+      }
+      void fetchJobs();
+    </script>
+  </body>
+</html>
+
