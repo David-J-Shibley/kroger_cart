@@ -626,153 +626,102 @@ export async function generateGroceryList(): Promise<void> {
   const out = document.getElementById("generated");
   if (!out || !btn) return;
   out.style.display = "block";
-  out.innerHTML = '<pre class="generated-text">Connecting...</pre>';
+  out.innerHTML = '<pre class="generated-text">Creating meal-plan job…</pre>';
   const pre = out.querySelector("pre");
-  (btn as HTMLButtonElement).disabled = true;
-  const slowHintId = setTimeout(() => {
-    if (pre && pre.textContent === "Connecting...") {
-      pre.textContent =
-        "Connecting…\n\nStill waiting? The API host (deploy-config apiOrigin) needs FEATHERLESS_API_KEY and must route " +
-        (tryGetPublicConfig()?.llmProxyPrefix ?? "/llm-api") +
-        " to Express. On the API host, deploy-config.json should list llmModels (try order); without that file use LLM_MODEL. Docs: https://featherless.ai/docs/overview";
-    }
-  }, 15000);
+  (btn as HTMLButtonElement).disabled = false; // keep button usable
+
   try {
     await ensurePublicConfig();
-    const llmPrefixEarly = getLlmProxyPrefix();
-    await assertApiLlmReadyForFeatherless(llmPrefixEarly);
     const pub = tryGetPublicConfig();
     if (pub?.authRequired) {
       const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
       if (!me.ok) {
-        clearTimeout(slowHintId);
         out.style.display = "none";
-        (btn as HTMLButtonElement).disabled = false;
         alert("Sign in or create an account (buttons in the header) to generate a meal plan.");
         return;
       }
     }
-    const llmPrefix = getLlmProxyPrefix();
+
     const prefs = readMealPlanPrefsFromForm();
     persistMealPlanPrefs(prefs);
-    const prompt = buildMealPlanPrompt(prefs);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 600_000);
-    const response = await fetch(
-      getAppOrigin() + llmPrefix + "/api/chat",
-      mergeAppAuth({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
-          stream: true,
-          options: { num_predict: mealPlanNumPredict(prefs) },
-        }),
-        signal: controller.signal,
-      })
-    );
-    clearTimeout(timeoutId);
-    clearTimeout(slowHintId);
-    const respCt = (response.headers.get("content-type") || "").toLowerCase();
-    if (response.ok && respCt.includes("text/html")) {
-      throw new Error(
-        "Meal-plan POST returned HTML (content-type text/html). `apiOrigin` is probably the static website; the request never reached Express. Point apiOrigin at the API host and route " +
-          llmPrefix +
-          "/api/chat to Node."
-      );
+
+    const res = await fetch(apiUrl("/api/meal-plan-jobs"), mergeAppAuth({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(prefs),
+    }));
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Job creation failed (HTTP ${res.status}): ${body}`);
     }
-    if (!response.ok) {
-      const body = await response.text();
-      let detail = "LLM request failed (HTTP " + response.status + ")";
-      try {
-        const json = JSON.parse(body) as { error?: string; error_description?: string };
-        if (typeof json.error_description === "string" && json.error_description.trim()) {
-          detail = json.error_description.trim();
-        } else if (typeof json.error === "string" && json.error.trim()) {
-          detail = json.error.trim();
-        }
-      } catch {
-        /* use status if body isn't JSON */
-      }
-      throw new Error(detail);
+    const { jobId } = (await res.json()) as { jobId: string };
+
+    if (pre) {
+      pre.textContent =
+        "Meal-plan job created.\n\nYou can keep using the app while it runs.\n\nJob id: " +
+        jobId +
+        "\n\nWaiting for result…";
     }
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let text = "";
-    let buffer = "";
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        let obj: LlmStreamLine;
-        try {
-          obj = JSON.parse(line) as LlmStreamLine;
-        } catch {
-          continue;
-        }
-        if (typeof obj.error === "string" && obj.error.trim()) {
-          throw new Error(obj.error.trim());
-        }
-        const content = obj.message?.content;
-        if (content) {
-          text += content;
-          if (pre) {
-            pre.textContent = text;
-            pre.scrollTop = pre.scrollHeight;
-          }
-        }
-      }
-    }
-    if (buffer.trim()) {
-      try {
-        const obj = JSON.parse(buffer) as LlmStreamLine;
-        if (typeof obj.error === "string" && obj.error.trim()) {
-          throw new Error(obj.error.trim());
-        }
-        if (obj.message?.content) text += obj.message.content;
-      } catch (e) {
-        if (e instanceof Error && e.message && !/^Unexpected token/i.test(e.message)) {
-          throw e;
-        }
-        /* ignore trailing parse noise */
-      }
-    }
-    if (pre) pre.textContent = text;
-    renderGeneratedResult(text);
+
+    await pollMealPlanJob(jobId);
   } catch (err) {
-    clearTimeout(slowHintId);
     console.error(err);
-    const raw = err instanceof Error ? err.message : String(err);
-    let msg: string;
-    if (err instanceof Error && err.name === "AbortError") {
-      msg =
-        "Request timed out after 10 minutes. Try simplifying the meal-plan prompt or ask your admin to adjust deploy-config llmModels (or LLM_MODEL) on the API host.";
-    } else {
-      msg = "Error: " + raw;
-      const looksLikeLlmOrNetwork =
-        /ECONNREFUSED|ENOTFOUND|fetch failed|502|model|Featherless|featherless/i.test(raw) ||
-        (/HTTP 5/.test(raw) && !/DYNAMODB|subscription/i.test(raw));
-      const isAuthOrBillingGate =
-        /DYNAMODB_USERS_TABLE|subscription is required|SUBSCRIPTION_REQUIRED|Unauthorized|Missing Cognito|Invalid or expired token/i.test(
-          raw
-        );
-      if (looksLikeLlmOrNetwork && !isAuthOrBillingGate) {
-        msg +=
-          "\n\nFeatherless.ai: confirm FEATHERLESS_API_KEY on the API server, deploy-config llmModels (or LLM_MODEL) lists models your plan can run, outbound HTTPS to api.featherless.ai is allowed, and your CDN forwards " +
-          getLlmProxyPrefix() +
-          " to Express. See https://featherless.ai/docs/overview";
-      } else if (/DYNAMODB_USERS_TABLE|Subscription checks require/i.test(raw)) {
-        msg +=
-          "\n\nEither set DYNAMODB_USERS_TABLE in .env (and create the table), or set SUBSCRIPTION_REQUIRED=false if you are not using Stripe subscriptions yet.";
+    const msg = err instanceof Error ? err.message : String(err);
+    if (out) out.textContent = "Error: " + msg;
+  }
+}
+
+async function pollMealPlanJob(jobId: string): Promise<void> {
+  const out = document.getElementById("generated");
+  const pre = out?.querySelector("pre");
+  let attempts = 0;
+
+  while (true) {
+    attempts++;
+    try {
+      const res = await fetch(apiUrl(`/api/meal-plan-jobs/${jobId}`), mergeAppAuth({
+        method: "GET",
+      }));
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`Job status failed (HTTP ${res.status}): ${body}`);
       }
+      const job = (await res.json()) as {
+        status: "pending" | "running" | "succeeded" | "failed";
+        resultText?: string;
+        error?: string;
+      };
+
+      if (job.status === "succeeded" && job.resultText) {
+        renderGeneratedResult(job.resultText);
+        return;
+      }
+      if (job.status === "failed") {
+        const errMsg = job.error || "Meal plan job failed.";
+        if (out) out.textContent = "Error: " + errMsg;
+        return;
+      }
+
+      if (pre) {
+        pre.textContent =
+          "Meal-plan job " +
+          job.status +
+          "…\n\nYou can keep using the app while it finishes.\n\nJob id: " +
+          jobId;
+      }
+    } catch (err) {
+      console.error(err);
+      if (out) {
+        out.textContent =
+          "Error while checking job status. You can refresh the page and try again.\n" +
+          (err instanceof Error ? err.message : String(err));
+      }
+      return;
     }
-    out.textContent = msg;
-  } finally {
-    (btn as HTMLButtonElement).disabled = false;
+
+    // simple backoff: 1.5s, up to ~30 attempts (~45s)
+    const delay = Math.min(1500 + attempts * 200, 5000);
+    await new Promise((r) => setTimeout(r, delay));
   }
 }
 
