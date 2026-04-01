@@ -420,6 +420,12 @@ body.app-page {
   color: var(--text-muted);
 }
 
+.meal-regenerate-status {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--app-primary);
+}
+
 .meal-regenerate-day {
   margin-top: 8px;
 }

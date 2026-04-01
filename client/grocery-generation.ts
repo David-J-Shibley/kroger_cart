@@ -253,7 +253,7 @@ function renderMealRegenerateControls(plan?: PlanJsonRoot): void {
   }
   const parts: string[] = [];
   parts.push(
-    '<div class="meal-regenerate-heading"><h4>Adjust individual meals</h4><p>Select a meal to regenerate a new suggestion that still respects your notes.</p></div>'
+    '<div class="meal-regenerate-heading"><h4>Adjust individual meals</h4><p>Select a meal to regenerate a new suggestion that still respects your notes.</p><p id="mealRegenerateStatus" class="meal-regenerate-status" aria-live="polite"></p></div>'
   );
   for (const day of plan.days) {
     if (!day || !Array.isArray(day.meals) || !day.meals.length) continue;
@@ -282,6 +282,17 @@ function renderMealRegenerateControls(plan?: PlanJsonRoot): void {
     parts.push("</div>");
   }
   container.innerHTML = parts.join("");
+}
+
+function setMealRegenerateLoading(isLoading: boolean): void {
+  const status = document.getElementById("mealRegenerateStatus");
+  const buttons = document.querySelectorAll<HTMLButtonElement>(".meal-regenerate-btn");
+  if (status) {
+    status.textContent = isLoading ? "Regenerating this meal…" : "";
+  }
+  buttons.forEach((btn) => {
+    btn.disabled = isLoading;
+  });
 }
 
 export function regenerateMealByDishId(dishId: string): void {
@@ -327,6 +338,7 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
     "Now respond with ONLY the updated PLAN_JSON as a single compact JSON object (no surrounding prose).";
 
   try {
+    setMealRegenerateLoading(true);
     await ensurePublicConfig();
     const llmPrefix = getLlmProxyPrefix();
     const pub = tryGetPublicConfig();
@@ -377,7 +389,15 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
 
     let updatedPlan: PlanJsonRoot;
     try {
-      updatedPlan = JSON.parse(content) as PlanJsonRoot;
+      // When the provider wraps JSON inside another JSON object or appends metadata,
+      // extract the first top-level JSON object from the string.
+      const firstBrace = content.indexOf("{");
+      const lastBrace = content.lastIndexOf("}");
+      const candidate =
+        firstBrace !== -1 && lastBrace > firstBrace
+          ? content.slice(firstBrace, lastBrace + 1).trim()
+          : content;
+      updatedPlan = JSON.parse(candidate) as PlanJsonRoot;
     } catch (e) {
       console.error("Failed to parse updated PLAN_JSON", e, content);
       alert("The model returned an invalid PLAN_JSON. Try again in a moment.");
@@ -398,6 +418,8 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
         ? err.message
         : "Meal regeneration failed due to an unknown error.";
     alert(msg);
+  } finally {
+    setMealRegenerateLoading(false);
   }
 }
 
