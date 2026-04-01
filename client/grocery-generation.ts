@@ -218,7 +218,9 @@ export function renderGeneratedResult(text: string): void {
     '<button type="button" onclick="saveLLMToStorage()">Save to storage</button>' +
     '<button type="button" class="btn-secondary" onclick="copyGroceryListToClipboard()">Copy grocery list</button>' +
     '</p><div id="mealRegenerateList" class="meal-regenerate-list"></div>';
-  renderMealRegenerateControls(extractPlanJsonFromText(text));
+  const parsedPlan = extractPlanJsonFromText(text) ?? (appState.mealPlanJson as PlanJsonRoot | undefined);
+  if (parsedPlan) appState.mealPlanJson = parsedPlan;
+  renderMealRegenerateControls(parsedPlan);
   const items = ingredientLines;
   if (items.length) {
     listEl.innerHTML = items
@@ -332,6 +334,8 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
     dishId +
     '" with a new dish.\n' +
     "- Keep all other days and meals unchanged.\n" +
+    "- The new dish must be meaningfully different from the current one: change the main protein or base, and do not simply restate the same recipe with minor wording edits.\n" +
+    "- Do NOT reuse the existing dish name or a trivially similar variation.\n" +
     "- The new dish should fit the same meal type (breakfast, lunch, or dinner) and feel consistent with the rest of the plan.\n" +
     "- Update the grocery.ingredients array so it reflects the full set of ingredients after this change, with each consolidated ingredient listed exactly once.\n" +
     "- Do not change any other structure, and do not include recipes text or headings—only the updated PLAN_JSON object.\n\n" +
