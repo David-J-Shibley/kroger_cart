@@ -85,10 +85,16 @@ function isLikelyGroceryItem(line: string): boolean {
   // Simple "Name, amount" without unit (e.g. "eggs, 3") is also fine.
   if (/^[^,]+,\s*\d+(\.\d+)?\b/.test(s)) return true;
 
-  // Very short lines without numbers are more likely headings or noise.
-  if (!/\d/.test(s) && s.length < 20) return false;
+  // Lines like "salt and pepper to taste" (no explicit number) should still count.
+  if (/\bto taste\b/i.test(s)) return true;
 
-  return true;
+  // If there is no number at all and it didn't match any of the above
+  // ingredient-style patterns, treat it as non-grocery (likely a step or heading).
+  if (!/\d/.test(s)) return false;
+
+  // If we have a number but no clear unit, be conservative and require at least a comma split,
+  // e.g. "eggs, 3" was already handled above. Most remaining numeric sentences are likely steps.
+  return false;
 }
 
 /** Meal-plan rows like "Breakfast: Oatmeal" or "- Lunch: Sandwiches" — not grocery SKUs. */
