@@ -377,29 +377,51 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
       throw new Error(detail);
     }
     const raw = await response.text();
-    let content = raw.trim();
-    try {
-      const maybeObj = JSON.parse(raw) as { message?: { content?: string } };
-      if (maybeObj && typeof maybeObj === "object" && maybeObj.message?.content) {
-        content = String(maybeObj.message.content).trim();
+
+    // Helper to extract the first complete JSON object from a string, tolerating
+    // provider wrappers and trailing metadata.
+    const extractFirstJsonObject = (src: string): string | null => {
+      const text = src.trim();
+      const start = text.indexOf("{");
+      if (start === -1) return null;
+      let depth = 0;
+      let inString = false;
+      for (let i = start; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '"' && text[i - 1] !== "\\") {
+          inString = !inString;
+        }
+        if (inString) continue;
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+          depth--;
+          if (depth === 0) {
+            return text.slice(start, i + 1);
+          }
+        }
       }
-    } catch {
-      /* raw might already be the JSON object text */
-    }
+      return null;
+    };
 
     let updatedPlan: PlanJsonRoot;
     try {
-      // When the provider wraps JSON inside another JSON object or appends metadata,
-      // extract the first top-level JSON object from the string.
-      const firstBrace = content.indexOf("{");
-      const lastBrace = content.lastIndexOf("}");
-      const candidate =
-        firstBrace !== -1 && lastBrace > firstBrace
-          ? content.slice(firstBrace, lastBrace + 1).trim()
-          : content;
-      updatedPlan = JSON.parse(candidate) as PlanJsonRoot;
+      // Some providers return a JSON envelope with message.content.
+      let candidate = raw;
+      try {
+        const maybeObj = JSON.parse(raw) as { message?: { content?: string } };
+        if (maybeObj && typeof maybeObj === "object" && typeof maybeObj.message?.content === "string") {
+          candidate = maybeObj.message.content;
+        }
+      } catch {
+        /* raw might already just be the JSON text */
+      }
+      const jsonFragment = extractFirstJsonObject(candidate);
+      if (!jsonFragment) {
+        throw new Error("No JSON object found in model response.");
+      }
+      updatedPlan = JSON.parse(jsonFragment) as PlanJsonRoot;
     } catch (e) {
-      console.error("Failed to parse updated PLAN_JSON", e, content);
+      console.error("Failed to parse updated PLAN_JSON", e, raw);
       alert("The model returned an invalid PLAN_JSON. Try again in a moment.");
       return;
     }
