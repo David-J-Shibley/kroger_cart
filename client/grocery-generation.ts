@@ -56,55 +56,17 @@ interface PlanJsonRoot {
 }
 
 function extractIngredientLinesFromText(text: string): { lines: string[]; displayText: string } {
-  const ingMarker = "INGREDIENTS_JSON:";
   const planMarker = "PLAN_JSON:";
-  const ingIdx = text.lastIndexOf(ingMarker);
   const planIdx = text.lastIndexOf(planMarker);
 
-  const firstMarkerIdx =
-    ingIdx === -1 && planIdx === -1
-      ? -1
-      : Math.min(
-          ingIdx === -1 ? Number.POSITIVE_INFINITY : ingIdx,
-          planIdx === -1 ? Number.POSITIVE_INFINITY : planIdx
-        );
-
-  if (firstMarkerIdx === -1) {
-    // No structured blocks; fall back to old parser.
+  if (planIdx === -1) {
+    // No structured block; fall back to old parser on entire text.
     return { lines: parseGroceryLines(text), displayText: text };
   }
 
-  const before = text.slice(0, firstMarkerIdx).trimEnd();
+  const before = text.slice(0, planIdx).trimEnd();
 
   let ingredientLines: string[] | null = null;
-  if (ingIdx !== -1) {
-    const afterIng = text.slice(ingIdx + ingMarker.length);
-    const jsonLineMatch = afterIng.match(/^[ \t]*\r?\n?([\s\S]+)$/);
-    const jsonRaw = jsonLineMatch ? jsonLineMatch[1].trim() : afterIng.trim();
-
-    try {
-      const parsed = JSON.parse(jsonRaw) as IngredientsJsonPayload;
-      const items = Array.isArray(parsed.ingredients) ? parsed.ingredients : [];
-      const labels: string[] = [];
-      for (const item of items) {
-        if (!item) continue;
-        const label =
-          typeof item.label === "string" && item.label.trim()
-            ? item.label.trim()
-            : typeof item.name === "string" && item.name.trim()
-              ? item.name.trim()
-              : "";
-        if (!label) continue;
-        if (!isIngredientLabelForCart(label)) continue;
-        labels.push(label);
-      }
-      if (labels.length) {
-        ingredientLines = labels;
-      }
-    } catch {
-      // ignore and fall back below
-    }
-  }
 
   if (planIdx !== -1) {
     const afterPlan = text.slice(planIdx + planMarker.length);
@@ -133,8 +95,8 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
 
       appState.mealPlanJson = parsedPlan;
 
-      // If we didn't get ingredient lines from INGREDIENTS_JSON, try grocery.ingredients in PLAN_JSON.
-      if (!ingredientLines && parsedPlan?.grocery?.ingredients) {
+      // Use grocery.ingredients in PLAN_JSON as the single source of ingredient lines.
+      if (parsedPlan?.grocery?.ingredients) {
         const labels: string[] = [];
         for (const item of parsedPlan.grocery.ingredients) {
           if (!item) continue;
@@ -332,6 +294,10 @@ export function regenerateMealByDishId(dishId: string): void {
   void doRegenerateMealByDishId(dishId);
 }
 
+// Expose for inline onclick handlers in index.html.
+(window as unknown as { regenerateMealByDishId?: (dishId: string) => void }).regenerateMealByDishId =
+  regenerateMealByDishId;
+
 async function doRegenerateMealByDishId(dishId: string): Promise<void> {
   const plan = appState.mealPlanJson as PlanJsonRoot | null;
   if (!plan) {
@@ -420,16 +386,9 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
 
     appState.mealPlanJson = updatedPlan;
 
-    const groceryIngredients = updatedPlan.grocery?.ingredients ?? [];
-    const ingredientsJson = JSON.stringify({ ingredients: groceryIngredients });
     const baseText =
       appState.generatedDisplayText || appState.lastGeneratedText || appState.lastGeneratedText;
-    const newText =
-      baseText +
-      "\n\nINGREDIENTS_JSON:\n" +
-      ingredientsJson +
-      "\nPLAN_JSON:\n" +
-      JSON.stringify(updatedPlan);
+    const newText = baseText + "\n\nPLAN_JSON:\n" + JSON.stringify(updatedPlan);
     renderGeneratedResult(newText);
     alert("Meal updated. Review the new ingredients and cart lines.");
   } catch (err) {

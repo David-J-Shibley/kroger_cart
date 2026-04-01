@@ -169,19 +169,13 @@ Keep the day-by-day plan brief: short dish names only—no per-dish ingredient l
 
   const tailNote = prefs.includeRecipes
     ? `- After Recipes, output the consolidated grocery list as specified.
-- Finally, at the VERY END of your response, output two structured blocks:
-  1) A line: INGREDIENTS_JSON: followed by a single compact JSON object on the next line, with this exact shape (no comments, no trailing commas, no extra text after it):
-{"ingredients":[{"label":"chicken breast, 4 lb","name":"chicken breast","quantity":4,"unit":"lb"},{"label":"cucumbers, 3","name":"cucumbers","quantity":3,"unit":""}]}
-The "label" must match exactly what you put in the grocery list line for that ingredient. Include every ingredient exactly once in this JSON array.
-  2) Then a line: PLAN_JSON: followed by a single compact JSON object on the next line that describes the entire plan. Use this exact shape (no comments, no trailing commas, no extra text after it):
+- Finally, at the VERY END of your response, output one structured block:
+  - A line: PLAN_JSON: followed by a single compact JSON object on the next line that describes the entire plan. Use this exact shape (no comments, no trailing commas, no extra text after it):
 {"days":[{"day":1,"label":"Day 1","meals":[{"dishId":"day1-breakfast-1","type":"breakfast","name":"Oatmeal with berries","notes":"","ingredients":[{"label":"rolled oats, 1 cup","name":"rolled oats","quantity":1,"unit":"cup"}],"steps":["Short step 1","Short step 2"]}]}],"grocery":{"ingredients":[{"label":"rolled oats, 1 cup","name":"rolled oats","quantity":1,"unit":"cup"}]}}
 For PLAN_JSON, include every day and every meal you planned, with a stable dishId per meal (e.g. "day3-dinner-1"). The "grocery.ingredients" array must list each consolidated ingredient exactly once and should be consistent with the human-readable grocery list. Do not put any other text after the PLAN_JSON JSON line.`
     : `- Be concise: short meal names and list items only.
-- Finally, at the VERY END of your response, output two structured blocks:
-  1) A line: INGREDIENTS_JSON: followed by a single compact JSON object on the next line, with this exact shape (no comments, no trailing commas, no extra text after it):
-{"ingredients":[{"label":"chicken breast, 4 lb","name":"chicken breast","quantity":4,"unit":"lb"},{"label":"cucumbers, 3","name":"cucumbers","quantity":3,"unit":""}]}
-The "label" must match exactly what you would put in the grocery list line for that ingredient. Include every ingredient exactly once in this JSON array.
-  2) Then a line: PLAN_JSON: followed by a single compact JSON object on the next line that describes the entire plan. Use this exact shape (no comments, no trailing commas, no extra text after it):
+- Finally, at the VERY END of your response, output one structured block:
+  - A line: PLAN_JSON: followed by a single compact JSON object on the next line that describes the entire plan. Use this exact shape (no comments, no trailing commas, no extra text after it):
 {"days":[{"day":1,"label":"Day 1","meals":[{"dishId":"day1-breakfast-1","type":"breakfast","name":"Oatmeal with berries","notes":"","ingredients":[{"label":"rolled oats, 1 cup","name":"rolled oats","quantity":1,"unit":"cup"}],"steps":["Short step 1","Short step 2"]}]}],"grocery":{"ingredients":[{"label":"rolled oats, 1 cup","name":"rolled oats","quantity":1,"unit":"cup"}]}}
 For PLAN_JSON, include every day and every meal you planned, with a stable dishId per meal (e.g. "day3-dinner-1"). The "grocery.ingredients" array must list each consolidated ingredient exactly once and should be consistent with the human-readable grocery list. Do not put any other text after the PLAN_JSON JSON line.`;
 
