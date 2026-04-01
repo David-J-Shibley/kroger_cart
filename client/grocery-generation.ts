@@ -218,15 +218,10 @@ export function renderGeneratedResult(text: string): void {
     '<button type="button" onclick="saveLLMToStorage()">Save to storage</button>' +
     '<button type="button" class="btn-secondary" onclick="copyGroceryListToClipboard()">Copy grocery list</button>' +
     '</p><div id="mealRegenerateList" class="meal-regenerate-list"></div>';
-  // Prefer the already-parsed plan in appState; fall back to parsing from text.
-  const parsedPlanFromText = extractPlanJsonFromText(text);
-  const plan =
-    (parsedPlanFromText as PlanJsonRoot | undefined) ||
-    (appState.mealPlanJson as PlanJsonRoot | undefined) ||
-    undefined;
+  // Use the structured plan we parsed earlier (if any) to drive the regenerate UI.
+  const plan = appState.mealPlanJson as PlanJsonRoot | null;
   console.log("planShape", Array.isArray(plan?.days), plan);
-  if (plan) appState.mealPlanJson = plan;
-  renderMealRegenerateControls(plan);
+  renderMealRegenerateControls(plan ?? undefined);
   const items = ingredientLines;
   if (items.length) {
     listEl.innerHTML = items
