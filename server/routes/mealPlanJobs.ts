@@ -1,10 +1,10 @@
 // server/routes/mealPlanJobs.ts
 import type { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { buildMealPlanPrompt, mealPlanNumPredict } from "../../client/meal-plan.js"; // or re‑implement prompt server-side
+import { buildMealPlanPrompt, mealPlanNumPredict } from "../../client/meal-plan.js";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
-import { mergeAppAuth } from "../authed-fetch.js"; // if you have a shared helper for auth; otherwise plain fetch
+import { resolveCognitoUserContext } from "../session/resolveContext.js";
 
 type JobStatus = "pending" | "running" | "succeeded" | "failed";
 
@@ -14,16 +14,18 @@ interface MealPlanJob {
   createdAt: string;
   updatedAt: string;
   status: JobStatus;
-  prefs: any;        // MealPlanPrefs shape
+  prefs: any; // MealPlanPrefs shape
+  accessToken?: string;
   resultText?: string;
   error?: string;
 }
 
 const jobs = new Map<string, MealPlanJob>();
 
-export function postMealPlanJob(req: Request, res: Response): void {
-  const userId = (req as any).user?.id ?? "anonymous";
+export async function postMealPlanJob(req: Request, res: Response): Promise<void> {
+  const userId = (req as any).appUserId ?? (req as any).user?.id ?? "anonymous";
   const prefs = req.body;
+  const ctx = await resolveCognitoUserContext(req);
   const id = uuidv4();
   const now = new Date().toISOString();
 
@@ -34,6 +36,7 @@ export function postMealPlanJob(req: Request, res: Response): void {
     updatedAt: now,
     status: "pending",
     prefs,
+    accessToken: ctx?.accessToken,
   };
   jobs.set(id, job);
 
@@ -69,13 +72,16 @@ async function runMealPlanJob(job: MealPlanJob): Promise<void> {
     const prompt = buildMealPlanPrompt(prefs);
     const numPredict = mealPlanNumPredict(prefs);
 
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (job.accessToken) {
+      headers.Authorization = `Bearer ${job.accessToken}`;
+    }
+
     const response = await fetch(
-      config.appPublicUrl.replace(/\/+$/, "") +
-        (config.llmProxyPrefix ?? "/llm-api") +
-        "/api/chat",
+      config.appPublicUrl.replace(/\/+$/, "") + "/llm-api/api/chat",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           messages: [{ role: "user", content: prompt }],
           stream: false,
