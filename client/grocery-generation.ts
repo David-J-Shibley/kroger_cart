@@ -454,7 +454,7 @@ export function loadSavedLLM(): void {
       alert('Nothing saved. Generate a list first, then click "Save to storage".');
       return;
     }
-    renderGeneratedResult(saved);
+    renderGeneratedResult(saved, appState.mealPlanJson as PlanJsonRoot | undefined);
   } catch (e) {
     alert("Load failed: " + (e instanceof Error ? e.message : e));
   }
@@ -462,7 +462,7 @@ export function loadSavedLLM(): void {
 
 /** Load bundled sample meal plan + grocery list (no LLM). For testing UI and Kroger add-to-cart. */
 export function loadExampleMealPlan(): void {
-  renderGeneratedResult(EXAMPLE_MEAL_PLAN_TEXT);
+  renderGeneratedResult(EXAMPLE_MEAL_PLAN_TEXT, undefined);
 }
 
 export async function copyGroceryListToClipboard(): Promise<void> {
@@ -700,7 +700,7 @@ export async function generateGroceryList(): Promise<void> {
       }
     }
     if (pre) pre.textContent = text;
-    renderGeneratedResult(text);
+    renderGeneratedResult(text, extractPlanJsonFromText(text));
   } catch (err) {
     clearTimeout(slowHintId);
     console.error(err);
@@ -731,5 +731,17 @@ export async function generateGroceryList(): Promise<void> {
     out.textContent = msg;
   } finally {
     (btn as HTMLButtonElement).disabled = false;
+  }
+}
+
+function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
+  const planMarker = "PLAN_JSON:";
+  const planIdx = text.lastIndexOf(planMarker);
+  if (planIdx === -1) return undefined;
+  const planRaw = text.slice(planIdx + planMarker.length);
+  try {
+    return JSON.parse(planRaw) as PlanJsonRoot;
+  } catch {
+    return undefined;
   }
 }
