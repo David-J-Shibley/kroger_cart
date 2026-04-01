@@ -112,6 +112,9 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
     const planRaw = planMatch ? planMatch[1].trim() : afterPlan.trim();
     try {
       const parsedPlan = JSON.parse(planRaw) as PlanJsonRoot;
+      // Debug: inspect parsed PLAN_JSON to harden client behavior if needed.
+      // eslint-disable-next-line no-console
+      console.log("Parsed PLAN_JSON:", parsedPlan);
       appState.mealPlanJson = parsedPlan;
       // If we didn't get ingredient lines from INGREDIENTS_JSON, try grocery.ingredients in PLAN_JSON.
       if (!ingredientLines && parsedPlan?.grocery?.ingredients) {
