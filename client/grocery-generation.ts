@@ -280,16 +280,18 @@ function renderMealRegenerateControls(): void {
     return;
   }
   const parts: string[] = [];
-  console.log("parts", parts);
   parts.push(
     '<div class="meal-regenerate-heading"><h4>Adjust individual meals</h4><p>Select a meal to regenerate a new suggestion that still respects your notes.</p></div>'
   );
+  console.log("parts1", parts);
   for (const day of plan.days) {
+    console.log("day", day);
     if (!day || !Array.isArray(day.meals) || !day.meals.length) continue;
     const dayLabel = (day.label || `Day ${day.day ?? ""}`).trim();
     parts.push('<div class="meal-regenerate-day">');
     parts.push('<div class="meal-regenerate-day-label">' + escapeHtml(dayLabel) + "</div>");
     for (const meal of day.meals) {
+      console.log("meal", meal);
       if (!meal || !meal.dishId || !meal.name) continue;
       const typeLabel = (meal.type || "").trim();
       const title =
