@@ -63,7 +63,7 @@ function isLikelyGroceryItem(line: string): boolean {
 
   // Filter out obvious recipe step lines starting with common cooking verbs.
   if (
-    /^(preheat|cook|bake|simmer|boil|grill|roast|stir|mix|combine|whisk|season|serve|let\s+rest|let\s+cool|arrange|top|fold|pour|transfer|spread|layer|chill|marinate|drain|rinse)\b/i.test(
+    /^(preheat|cook|bake|simmer|boil|grill|roast|stir|mix|combine|whisk|season|serve|let\s+rest|let\s+cool|arrange|top|fold|pour|transfer|spread|layer|chill|marinate|drain|rinse|toast|toss|place|add|slice|cut|chop|dice|heat|brush)\b/i.test(
       s
     )
   ) {

@@ -218,9 +218,14 @@ export function renderGeneratedResult(text: string): void {
     '<button type="button" onclick="saveLLMToStorage()">Save to storage</button>' +
     '<button type="button" class="btn-secondary" onclick="copyGroceryListToClipboard()">Copy grocery list</button>' +
     '</p><div id="mealRegenerateList" class="meal-regenerate-list"></div>';
-  const parsedPlan = extractPlanJsonFromText(text) ?? (appState.mealPlanJson as PlanJsonRoot | undefined);
-  if (parsedPlan) appState.mealPlanJson = parsedPlan;
-  renderMealRegenerateControls(parsedPlan);
+  // Prefer the already-parsed plan in appState; fall back to parsing from text.
+  const parsedPlanFromText = extractPlanJsonFromText(text);
+  const plan =
+    (parsedPlanFromText as PlanJsonRoot | undefined) ||
+    (appState.mealPlanJson as PlanJsonRoot | undefined) ||
+    undefined;
+  if (plan) appState.mealPlanJson = plan;
+  renderMealRegenerateControls(plan);
   const items = ingredientLines;
   if (items.length) {
     listEl.innerHTML = items
@@ -320,6 +325,26 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
   const notesEl = document.getElementById("mealPlanNotes") as HTMLTextAreaElement | null;
   const notes = (notesEl?.value ?? "").trim();
 
+  // Find the current meal to avoid trivial repeats.
+  let currentMealSummary = "";
+  outer: for (const day of plan.days ?? []) {
+    for (const meal of day.meals ?? []) {
+      if (meal?.dishId === dishId) {
+        currentMealSummary = JSON.stringify(
+          {
+            dishId: meal.dishId,
+            type: meal.type,
+            name: meal.name,
+            ingredients: meal.ingredients,
+          },
+          null,
+          2
+        );
+        break outer;
+      }
+    }
+  }
+
   const prompt =
     "You are updating an existing meal plan.\n\n" +
     "The current structured plan is below as JSON (PLAN_JSON). You must return an updated PLAN_JSON in exactly the same shape (no extra fields, no comments, no trailing commas, and no additional text before or after the JSON).\n\n" +
@@ -334,11 +359,14 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
     dishId +
     '" with a new dish.\n' +
     "- Keep all other days and meals unchanged.\n" +
-    "- The new dish must be meaningfully different from the current one: change the main protein or base, and do not simply restate the same recipe with minor wording edits.\n" +
+    "- The new dish must be meaningfully different from the current one shown below (different main protein or base, and not just small wording changes).\n" +
     "- Do NOT reuse the existing dish name or a trivially similar variation.\n" +
     "- The new dish should fit the same meal type (breakfast, lunch, or dinner) and feel consistent with the rest of the plan.\n" +
     "- Update the grocery.ingredients array so it reflects the full set of ingredients after this change, with each consolidated ingredient listed exactly once.\n" +
     "- Do not change any other structure, and do not include recipes text or headings—only the updated PLAN_JSON object.\n\n" +
+    "Current meal to replace (for reference; make the new dish clearly different from this):\n" +
+    (currentMealSummary || "(current meal not found by dishId; still replace by dishId)") +
+    "\n\n" +
     "Now respond with ONLY the updated PLAN_JSON as a single compact JSON object (no surrounding prose).";
 
   try {
