@@ -816,5 +816,5 @@ function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
 
 function getMessageText(plan: { message: { content: string } }): PlanJsonRoot | undefined {
   console.log("getMessageText", plan.message.content);
-  return extractPlanJsonFromText(plan.message.content);
+  return JSON.parse(plan.message.content) as PlanJsonRoot;
 }
