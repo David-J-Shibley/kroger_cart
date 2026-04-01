@@ -38,6 +38,7 @@
     "oidc-client-ts": "^3.5.0",
     "pino": "^10.3.1",
     "react-oidc-context": "^3.3.1",
-    "stripe": "^21.0.1"
+    "stripe": "^21.0.1",
+    "uuid": "^13.0.0"
   }
 }
