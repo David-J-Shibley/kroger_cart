@@ -814,6 +814,7 @@ function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
   }
 }
 
-function getMessageText(plan: { message: string }): PlanJsonRoot | undefined {
-  return extractPlanJsonFromText(plan.message);
+function getMessageText(plan: { message: { content: string } }): PlanJsonRoot | undefined {
+  console.log("getMessageText", plan.message.content);
+  return extractPlanJsonFromText(plan.message.content);
 }
