@@ -226,7 +226,7 @@ async function bulkAddGroceryLines(lines: string[]): Promise<{ added: number; fa
   return { added, failed };
 }
 
-export function renderGeneratedResult(text: string, plan?: PlanJsonRoot): void {
+export function renderGeneratedResult(text: string): void {
   appState.lastGeneratedText = text;
   const out = document.getElementById("generated");
   const cartSection = document.getElementById("add-to-cart-section");
@@ -242,7 +242,7 @@ export function renderGeneratedResult(text: string, plan?: PlanJsonRoot): void {
     '<button type="button" onclick="saveLLMToStorage()">Save to storage</button>' +
     '<button type="button" class="btn-secondary" onclick="copyGroceryListToClipboard()">Copy grocery list</button>' +
     '</p><div id="mealRegenerateList" class="meal-regenerate-list"></div>';
-  renderMealRegenerateControls(plan);
+  renderMealRegenerateControls(extractPlanJsonFromText(text));
   const items = ingredientLines;
   if (items.length) {
     listEl.innerHTML = items
@@ -423,7 +423,7 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
       ingredientsJson +
       "\nPLAN_JSON:\n" +
       JSON.stringify(updatedPlan);
-    renderGeneratedResult(newText, updatedPlan);
+    renderGeneratedResult(newText);
     alert("Meal updated. Review the new ingredients and cart lines.");
   } catch (err) {
     console.error(err);
@@ -454,7 +454,7 @@ export function loadSavedLLM(): void {
       alert('Nothing saved. Generate a list first, then click "Save to storage".');
       return;
     }
-    renderGeneratedResult(saved, appState.mealPlanJson as PlanJsonRoot | undefined);
+    renderGeneratedResult(saved);
   } catch (e) {
     alert("Load failed: " + (e instanceof Error ? e.message : e));
   }
@@ -462,7 +462,7 @@ export function loadSavedLLM(): void {
 
 /** Load bundled sample meal plan + grocery list (no LLM). For testing UI and Kroger add-to-cart. */
 export function loadExampleMealPlan(): void {
-  renderGeneratedResult(EXAMPLE_MEAL_PLAN_TEXT, undefined);
+  renderGeneratedResult(EXAMPLE_MEAL_PLAN_TEXT);
 }
 
 export async function copyGroceryListToClipboard(): Promise<void> {
@@ -700,7 +700,7 @@ export async function generateGroceryList(): Promise<void> {
       }
     }
     if (pre) pre.textContent = text;
-    renderGeneratedResult(text, extractPlanJsonFromText(text));
+    renderGeneratedResult(text);
   } catch (err) {
     clearTimeout(slowHintId);
     console.error(err);
