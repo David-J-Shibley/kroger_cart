@@ -224,7 +224,7 @@ export function renderGeneratedResult(text: string): void {
   if (Array.isArray(plan?.days)) {
     renderMealRegenerateControls(plan);
   } else {
-    renderMealRegenerateControls(extractPlanJsonFromText(text));
+    renderMealRegenerateControls(getMessageText(plan as { message: string }));
   }
   const items = ingredientLines;
   if (items.length) {
@@ -812,4 +812,8 @@ function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
   } catch {
     return undefined;
   }
+}
+
+function getMessageText(plan: { message: string }): PlanJsonRoot | undefined {
+  return extractPlanJsonFromText(plan.message);
 }
