@@ -400,6 +400,54 @@ body.app-page {
   padding: 12px 10px 4px;
 }
 
+/* Meal regenerate controls */
+.meal-regenerate-list {
+  margin-top: 16px;
+  padding: 12px 14px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(19, 27, 56, 0.08);
+  background: rgba(249, 251, 255, 0.95);
+}
+
+.meal-regenerate-heading h4 {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
+.meal-regenerate-heading p {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.meal-regenerate-day {
+  margin-top: 8px;
+}
+
+.meal-regenerate-day-label {
+  margin-bottom: 4px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.meal-regenerate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.meal-regenerate-title {
+  font-size: 0.85rem;
+}
+
+.meal-regenerate-btn {
+  min-width: 96px;
+  font-size: 0.8rem;
+  padding: 4px 10px;
+}
+
 .app-footer {
   flex-shrink: 0;
   margin-top: auto;

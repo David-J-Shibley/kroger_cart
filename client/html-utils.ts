@@ -103,7 +103,7 @@ export function isIngredientLabelForCart(line: string): boolean {
   if (!s) return false;
   // Reuse the same leading-verb heuristic to filter steps like "Add black beans..." etc.
   if (
-    /^(preheat|cook|bake|simmer|boil|grill|roast|stir|mix|combine|whisk|season|serve|let\s+rest|let\s+cool|arrange|top|fold|pour|transfer|spread|layer|chill|marinate|drain|rinse|toast|toss|place|add|slice|cut|chop|dice|heat)\b/i.test(
+    /^(preheat|cook|bake|simmer|boil|grill|roast|stir|mix|combine|whisk|season|serve|let\s+rest|let\s+cool|arrange|top|fold|pour|transfer|spread|layer|chill|marinate|drain|rinse|toast|toss|place|add|slice|cut|chop|dice|heat|brush)\b/i.test(
       s
     )
   ) {

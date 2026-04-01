@@ -109,16 +109,30 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
   if (planIdx !== -1) {
     const afterPlan = text.slice(planIdx + planMarker.length);
     const planMatch = afterPlan.match(/^[ \t]*\r?\n?([\s\S]+)$/);
-    const planRaw = planMatch ? planMatch[1].trim() : afterPlan.trim();
+    let planRaw = planMatch ? planMatch[1].trim() : afterPlan.trim();
+
+    // Strip markdown code fences like ```json ... ``` if present.
+    if (planRaw.startsWith("```")) {
+      planRaw = planRaw.replace(/^```[a-zA-Z]*\s*/i, "").replace(/```$/, "").trim();
+    }
+
     try {
-      // Debug: log the raw PLAN_JSON block we are about to parse.
-      // eslint-disable-next-line no-console
-      console.log("PLAN_JSON raw block:", planRaw);
-      const parsedPlan = JSON.parse(planRaw) as PlanJsonRoot;
-      // Debug: inspect parsed PLAN_JSON to harden client behavior if needed.
-      // eslint-disable-next-line no-console
-      console.log("Parsed PLAN_JSON:", parsedPlan);
+      const parsedAny = JSON.parse(planRaw) as any;
+
+      // Normalize shape: some models wrap grocery as a separate "day" object.
+      let parsedPlan: PlanJsonRoot = parsedAny;
+      if (!parsedPlan.grocery && Array.isArray(parsedPlan.days)) {
+        const last = parsedPlan.days[parsedPlan.days.length - 1] as any;
+        if (last && last.grocery) {
+          parsedPlan = {
+            days: parsedPlan.days.slice(0, parsedPlan.days.length - 1),
+            grocery: last.grocery as IngredientsJsonPayload,
+          };
+        }
+      }
+
       appState.mealPlanJson = parsedPlan;
+
       // If we didn't get ingredient lines from INGREDIENTS_JSON, try grocery.ingredients in PLAN_JSON.
       if (!ingredientLines && parsedPlan?.grocery?.ingredients) {
         const labels: string[] = [];
@@ -269,11 +283,8 @@ export function renderGeneratedResult(text: string): void {
 }
 
 function renderMealRegenerateControls(plan?: PlanJsonRoot): void {
-  console.log("renderMealRegenerateControls");
   const container = document.getElementById("mealRegenerateList");
-  console.log("container", container);
   if (!container) return;
-  console.log("plan", plan);
   if (!plan || !Array.isArray(plan.days) || !plan.days.length) {
     container.innerHTML = "";
     return;
@@ -282,15 +293,12 @@ function renderMealRegenerateControls(plan?: PlanJsonRoot): void {
   parts.push(
     '<div class="meal-regenerate-heading"><h4>Adjust individual meals</h4><p>Select a meal to regenerate a new suggestion that still respects your notes.</p></div>'
   );
-  console.log("parts1", parts);
   for (const day of plan.days) {
-    console.log("day", day);
     if (!day || !Array.isArray(day.meals) || !day.meals.length) continue;
     const dayLabel = (day.label || `Day ${day.day ?? ""}`).trim();
     parts.push('<div class="meal-regenerate-day">');
     parts.push('<div class="meal-regenerate-day-label">' + escapeHtml(dayLabel) + "</div>");
     for (const meal of day.meals) {
-      console.log("meal", meal);
       if (!meal || !meal.dishId || !meal.name) continue;
       const typeLabel = (meal.type || "").trim();
       const title =
@@ -311,7 +319,6 @@ function renderMealRegenerateControls(plan?: PlanJsonRoot): void {
     }
     parts.push("</div>");
   }
-  console.log("parts2", parts);
   container.innerHTML = parts.join("");
 }
 
@@ -749,8 +756,6 @@ function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
         planRaw = planRaw.replace(/^```[a-zA-Z]*\s*/i, "").replace(/```$/, "").trim();
       }
       try {
-        // eslint-disable-next-line no-console
-        console.log("PLAN_JSON raw block (cleaned):", planRaw);
         const parsed = JSON.parse(planRaw) as any;
         // Normalize shape: some models wrap grocery as a separate "day" object
         let parsedPlan: PlanJsonRoot = parsed;
@@ -763,8 +768,6 @@ function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
             };
           }
         }
-        // eslint-disable-next-line no-console
-        console.log("Parsed PLAN_JSON normalized:", parsedPlan);
         return parsedPlan;
       } catch {
         // ignore PLAN_JSON parse errors; keep going
