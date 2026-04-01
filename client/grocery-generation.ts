@@ -221,7 +221,11 @@ export function renderGeneratedResult(text: string): void {
   // Use the structured plan we parsed earlier (if any) to drive the regenerate UI.
   const plan = appState.mealPlanJson as PlanJsonRoot | null;
   console.log("planShape", Array.isArray(plan?.days), plan);
-  renderMealRegenerateControls(plan ?? undefined);
+  if (Array.isArray(plan?.days)) {
+    renderMealRegenerateControls(plan);
+  } else {
+    renderMealRegenerateControls(extractPlanJsonFromText(text));
+  }
   const items = ingredientLines;
   if (items.length) {
     listEl.innerHTML = items
