@@ -142,8 +142,9 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
     return { lines: ingredientLines, displayText: before || text };
   }
 
-  // Fallback: still hide the structured tail from the visible text, but parse grocery lines from the full text.
-  const parsedFallback = parseGroceryLines(text);
+  // Fallback: still hide the structured tail from the visible text, and only parse grocery
+  // lines from the human-readable portion (exclude any JSON blobs).
+  const parsedFallback = parseGroceryLines(before || text);
   return { lines: parsedFallback, displayText: before || text };
 }
 
