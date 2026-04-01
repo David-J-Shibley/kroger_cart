@@ -35,44 +35,116 @@ interface IngredientsJsonPayload {
   ingredients?: IngredientJsonItem[];
 }
 
+interface PlanJsonMeal {
+  dishId?: string;
+  type?: string;
+  name?: string;
+  notes?: string;
+  ingredients?: IngredientJsonItem[];
+  steps?: string[];
+}
+
+interface PlanJsonDay {
+  day?: number;
+  label?: string;
+  meals?: PlanJsonMeal[];
+}
+
+interface PlanJsonRoot {
+  days?: PlanJsonDay[];
+  grocery?: IngredientsJsonPayload;
+}
+
 function extractIngredientLinesFromText(text: string): { lines: string[]; displayText: string } {
-  const marker = "INGREDIENTS_JSON:";
-  const idx = text.lastIndexOf(marker);
-  if (idx === -1) {
-    // No structured block; fall back to old parser.
+  const ingMarker = "INGREDIENTS_JSON:";
+  const planMarker = "PLAN_JSON:";
+  const ingIdx = text.lastIndexOf(ingMarker);
+  const planIdx = text.lastIndexOf(planMarker);
+
+  const firstMarkerIdx =
+    ingIdx === -1 && planIdx === -1
+      ? -1
+      : Math.min(
+          ingIdx === -1 ? Number.POSITIVE_INFINITY : ingIdx,
+          planIdx === -1 ? Number.POSITIVE_INFINITY : planIdx
+        );
+
+  if (firstMarkerIdx === -1) {
+    // No structured blocks; fall back to old parser.
     return { lines: parseGroceryLines(text), displayText: text };
   }
 
-  const before = text.slice(0, idx).trimEnd();
-  const afterMarker = text.slice(idx + marker.length);
-  const jsonLineMatch = afterMarker.match(/^[ \t]*\r?\n?([\s\S]+)$/);
-  const jsonRaw = jsonLineMatch ? jsonLineMatch[1].trim() : afterMarker.trim();
+  const before = text.slice(0, firstMarkerIdx).trimEnd();
 
-  try {
-    const parsed = JSON.parse(jsonRaw) as IngredientsJsonPayload;
-    const items = Array.isArray(parsed.ingredients) ? parsed.ingredients : [];
-    const labels: string[] = [];
-    for (const item of items) {
-      if (!item) continue;
-      const label =
-        typeof item.label === "string" && item.label.trim()
-          ? item.label.trim()
-          : typeof item.name === "string" && item.name.trim()
-            ? item.name.trim()
-            : "";
-      if (!label) continue;
-      if (!isIngredientLabelForCart(label)) continue;
-      labels.push(label);
+  let ingredientLines: string[] | null = null;
+  if (ingIdx !== -1) {
+    const afterIng = text.slice(ingIdx + ingMarker.length);
+    const jsonLineMatch = afterIng.match(/^[ \t]*\r?\n?([\s\S]+)$/);
+    const jsonRaw = jsonLineMatch ? jsonLineMatch[1].trim() : afterIng.trim();
+
+    try {
+      const parsed = JSON.parse(jsonRaw) as IngredientsJsonPayload;
+      const items = Array.isArray(parsed.ingredients) ? parsed.ingredients : [];
+      const labels: string[] = [];
+      for (const item of items) {
+        if (!item) continue;
+        const label =
+          typeof item.label === "string" && item.label.trim()
+            ? item.label.trim()
+            : typeof item.name === "string" && item.name.trim()
+              ? item.name.trim()
+              : "";
+        if (!label) continue;
+        if (!isIngredientLabelForCart(label)) continue;
+        labels.push(label);
+      }
+      if (labels.length) {
+        ingredientLines = labels;
+      }
+    } catch {
+      // ignore and fall back below
     }
-    if (labels.length) {
-      // Use JSON-derived labels for cart, drop the JSON from the visible text.
-      return { lines: labels, displayText: before };
-    }
-  } catch {
-    // If JSON parsing fails, silently fall back.
   }
 
-  return { lines: parseGroceryLines(text), displayText: before || text };
+  if (planIdx !== -1) {
+    const afterPlan = text.slice(planIdx + planMarker.length);
+    const planMatch = afterPlan.match(/^[ \t]*\r?\n?([\s\S]+)$/);
+    const planRaw = planMatch ? planMatch[1].trim() : afterPlan.trim();
+    try {
+      const parsedPlan = JSON.parse(planRaw) as PlanJsonRoot;
+      appState.mealPlanJson = parsedPlan;
+      // If we didn't get ingredient lines from INGREDIENTS_JSON, try grocery.ingredients in PLAN_JSON.
+      if (!ingredientLines && parsedPlan?.grocery?.ingredients) {
+        const labels: string[] = [];
+        for (const item of parsedPlan.grocery.ingredients) {
+          if (!item) continue;
+          const label =
+            typeof item.label === "string" && item.label.trim()
+              ? item.label.trim()
+              : typeof item.name === "string" && item.name.trim()
+                ? item.name.trim()
+                : "";
+          if (!label) continue;
+          if (!isIngredientLabelForCart(label)) continue;
+          labels.push(label);
+        }
+        if (labels.length) {
+          ingredientLines = labels;
+        }
+      }
+    } catch {
+      // ignore PLAN_JSON parse errors; keep going
+    }
+  }
+
+  if (ingredientLines && ingredientLines.length) {
+    // Use JSON-derived labels for cart, drop the structured blocks from the visible text.
+    return { lines: ingredientLines, displayText: before || text };
+  }
+
+  // Fallback: still hide the structured tail from the visible text, but parse grocery lines from the full text.
+  const parsedFallback = parseGroceryLines(text);
+  return { lines: parsedFallback, displayText: before || text };
 }
 
 /**
@@ -155,13 +227,15 @@ export function renderGeneratedResult(text: string): void {
   if (!out || !cartSection || !listEl) return;
   out.style.display = "block";
   const { lines: ingredientLines, displayText } = extractIngredientLinesFromText(text);
+  appState.generatedDisplayText = displayText;
   out.innerHTML =
     '<pre class="generated-text">' +
     escapeHtml(displayText) +
     '</pre><p class="generated-actions">' +
     '<button type="button" onclick="saveLLMToStorage()">Save to storage</button>' +
     '<button type="button" class="btn-secondary" onclick="copyGroceryListToClipboard()">Copy grocery list</button>' +
-    "</p>";
+    '</p><div id="mealRegenerateList" class="meal-regenerate-list"></div>';
+  renderMealRegenerateControls();
   const items = ingredientLines;
   if (items.length) {
     listEl.innerHTML = items
@@ -185,6 +259,167 @@ export function renderGeneratedResult(text: string): void {
     cartSection.style.display = "none";
   }
   syncAddAllToCartToolbar();
+}
+
+function renderMealRegenerateControls(): void {
+  const container = document.getElementById("mealRegenerateList");
+  if (!container) return;
+  const plan = appState.mealPlanJson as PlanJsonRoot | null;
+  if (!plan || !Array.isArray(plan.days) || !plan.days.length) {
+    container.innerHTML = "";
+    return;
+  }
+  const parts: string[] = [];
+  parts.push(
+    '<div class="meal-regenerate-heading"><h4>Adjust individual meals</h4><p>Select a meal to regenerate a new suggestion that still respects your notes.</p></div>'
+  );
+  for (const day of plan.days) {
+    if (!day || !Array.isArray(day.meals) || !day.meals.length) continue;
+    const dayLabel = (day.label || `Day ${day.day ?? ""}`).trim();
+    parts.push('<div class="meal-regenerate-day">');
+    parts.push('<div class="meal-regenerate-day-label">' + escapeHtml(dayLabel) + "</div>");
+    for (const meal of day.meals) {
+      if (!meal || !meal.dishId || !meal.name) continue;
+      const typeLabel = (meal.type || "").trim();
+      const title =
+        (typeLabel ? typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1) + ": " : "") +
+        meal.name;
+      parts.push(
+        '<div class="meal-regenerate-row">' +
+          '<span class="meal-regenerate-title">' +
+          escapeHtml(title) +
+          "</span>" +
+          '<button type="button" class="meal-regenerate-btn" onclick="regenerateMealByDishId(' +
+          "'" +
+          String(meal.dishId).replace(/'/g, "\\'") +
+          "'" +
+          ')">Regenerate</button>' +
+          "</div>"
+      );
+    }
+    parts.push("</div>");
+  }
+  container.innerHTML = parts.join("");
+}
+
+export function regenerateMealByDishId(dishId: string): void {
+  if (!dishId) return;
+  const plan = appState.mealPlanJson as PlanJsonRoot | null;
+  if (!plan || !Array.isArray(plan.days)) {
+    alert("Meal plan details are not available yet. Generate a plan first.");
+    return;
+  }
+  void doRegenerateMealByDishId(dishId);
+}
+
+async function doRegenerateMealByDishId(dishId: string): Promise<void> {
+  const plan = appState.mealPlanJson as PlanJsonRoot | null;
+  if (!plan) {
+    alert("Meal plan details are not available yet. Generate a plan first.");
+    return;
+  }
+  const notesEl = document.getElementById("mealPlanNotes") as HTMLTextAreaElement | null;
+  const notes = (notesEl?.value ?? "").trim();
+
+  const prompt =
+    "You are updating an existing meal plan.\n\n" +
+    "The current structured plan is below as JSON (PLAN_JSON). You must return an updated PLAN_JSON in exactly the same shape (no extra fields, no comments, no trailing commas, and no additional text before or after the JSON).\n\n" +
+    "Existing PLAN_JSON:\n" +
+    JSON.stringify(plan) +
+    "\n\n" +
+    "User dietary notes and preferences (you must continue to respect these strictly):\n" +
+    (notes || "(none specified)") +
+    "\n\n" +
+    "Task:\n" +
+    "- Replace exactly one meal whose dishId is \"" +
+    dishId +
+    '" with a new dish.\n' +
+    "- Keep all other days and meals unchanged.\n" +
+    "- The new dish should fit the same meal type (breakfast, lunch, or dinner) and feel consistent with the rest of the plan.\n" +
+    "- Update the grocery.ingredients array so it reflects the full set of ingredients after this change, with each consolidated ingredient listed exactly once.\n" +
+    "- Do not change any other structure, and do not include recipes text or headings—only the updated PLAN_JSON object.\n\n" +
+    "Now respond with ONLY the updated PLAN_JSON as a single compact JSON object (no surrounding prose).";
+
+  try {
+    await ensurePublicConfig();
+    const llmPrefix = getLlmProxyPrefix();
+    const pub = tryGetPublicConfig();
+    if (pub?.authRequired) {
+      const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
+      if (!me.ok) {
+        alert("Sign in or create an account to adjust individual meals.");
+        return;
+      }
+    }
+    const response = await fetch(
+      getAppOrigin() + llmPrefix + "/api/chat",
+      mergeAppAuth({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: prompt }],
+          stream: false,
+          options: { num_predict: 2048 },
+        }),
+      })
+    );
+    if (!response.ok) {
+      const body = await response.text();
+      let detail = "LLM request failed (HTTP " + response.status + ")";
+      try {
+        const json = JSON.parse(body) as { error?: string; error_description?: string };
+        if (typeof json.error_description === "string" && json.error_description.trim()) {
+          detail = json.error_description.trim();
+        } else if (typeof json.error === "string" && json.error.trim()) {
+          detail = json.error.trim();
+        }
+      } catch {
+        /* leave detail as-is */
+      }
+      throw new Error(detail);
+    }
+    const raw = await response.text();
+    let content = raw.trim();
+    try {
+      const maybeObj = JSON.parse(raw) as { message?: { content?: string } };
+      if (maybeObj && typeof maybeObj === "object" && maybeObj.message?.content) {
+        content = String(maybeObj.message.content).trim();
+      }
+    } catch {
+      /* raw might already be the JSON object text */
+    }
+
+    let updatedPlan: PlanJsonRoot;
+    try {
+      updatedPlan = JSON.parse(content) as PlanJsonRoot;
+    } catch (e) {
+      console.error("Failed to parse updated PLAN_JSON", e, content);
+      alert("The model returned an invalid PLAN_JSON. Try again in a moment.");
+      return;
+    }
+
+    appState.mealPlanJson = updatedPlan;
+
+    const groceryIngredients = updatedPlan.grocery?.ingredients ?? [];
+    const ingredientsJson = JSON.stringify({ ingredients: groceryIngredients });
+    const baseText =
+      appState.generatedDisplayText || appState.lastGeneratedText || appState.lastGeneratedText;
+    const newText =
+      baseText +
+      "\n\nINGREDIENTS_JSON:\n" +
+      ingredientsJson +
+      "\nPLAN_JSON:\n" +
+      JSON.stringify(updatedPlan);
+    renderGeneratedResult(newText);
+    alert("Meal updated. Review the new ingredients and cart lines.");
+  } catch (err) {
+    console.error(err);
+    const msg =
+      err instanceof Error && err.message
+        ? err.message
+        : "Meal regeneration failed due to an unknown error.";
+    alert(msg);
+  }
 }
 
 export function saveLLMToStorage(): void {
