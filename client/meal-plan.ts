@@ -97,7 +97,7 @@ export function buildMealPlanPrompt(prefs: MealPlanPrefs): string {
   const scopeLine = buildMealsInstruction(prefs);
   const notes = (prefs.notes || "").trim().slice(0, 800);
   const notesBlock = notes
-    ? `\n\nAdditional constraints from the user (follow these closely):\n${notes}\n`
+    ? `\n\nAdditional constraints from the user (FOLLOW THESE STRICTLY — they override variety or convenience, and you must not violate them):\n${notes}\n`
     : "";
 
   const dayWord = days === 1 ? "1 day" : `${days} days`;
@@ -153,6 +153,13 @@ Do not put recipe ingredient bullets under any heading named "Grocery list" or "
 
 Keep the day-by-day plan brief: short dish names only—no per-dish ingredient lists or cooking steps in the plan section.`;
 
+  const safetyRules = `Safety and dietary rules (MUST follow all that apply based on the user's notes and common sense):
+- If the user mentions allergies (e.g. nuts, shellfish, gluten) or intolerances (e.g. lactose intolerance), do not include any ingredient, recipe, or dish that conflicts with those restrictions.
+- If the user says "lactose free", do not use regular milk, cream, cheese, yogurt, butter, or any other dairy ingredient that contains lactose. Use lactose-free or non-dairy alternatives only.
+- If the user mentions vegetarian, vegan, pescatarian, or similar patterns, do not include dishes or ingredients that violate those patterns.
+- When in doubt between a dish that might violate the notes and one that clearly fits, always choose the safer option that fully respects the notes.
+- The user's notes are hard constraints, not suggestions. Never add an item that clearly conflicts with them, even if it would improve variety.`;
+
   const groceryRules = `Then provide ONE consolidated grocery list for the entire period. Rules for the grocery list:
 - Scale all quantities for ${peopleWord} across every meal in the plan.
 - List each ingredient exactly ONCE. Add up all amounts needed across every recipe and write a single line per ingredient (e.g. "chicken breast, 4 lb" not separate lines for partial amounts).
@@ -164,9 +171,14 @@ Keep the day-by-day plan brief: short dish names only—no per-dish ingredient l
     ? `- After Recipes, output the consolidated grocery list as specified.`
     : `- Be concise: short meal names and list items only.`;
 
-  return `Create a meal plan for ${dayWord} for a household of ${peopleWord}. ${scopeLine}
+  return `You are helping plan meals and a grocery list. You must obey all dietary restrictions, allergies, and other constraints described by the user even if that limits variety.
 
-${strictDaysBlock}Start with a clear day-by-day overview (each day: the meals you are including, with specific dish names).${notesBlock}${recipeBlock}
+Create a meal plan for ${dayWord} for a household of ${peopleWord}. ${scopeLine}
+
+${strictDaysBlock}Start with a clear day-by-day overview (each day: the meals you are including, with specific dish names).${notesBlock}
+
+${safetyRules}
+${recipeBlock}
 
 ${groceryRules}
 ${tailNote}`;

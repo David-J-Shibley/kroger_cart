@@ -57,6 +57,40 @@ export function cleanGroceryLine(line: string): string {
   return s.replace(/^[\-\*•·\d.]+\s*/, "").trim();
 }
 
+function isLikelyGroceryItem(line: string): boolean {
+  const s = (line || "").trim();
+  if (!s) return false;
+
+  // Filter out obvious recipe step lines starting with common cooking verbs.
+  if (
+    /^(preheat|cook|bake|simmer|boil|grill|roast|stir|mix|combine|whisk|season|serve|let\s+rest|let\s+cool|arrange|top|fold|pour|transfer|spread|layer|chill|marinate|drain|rinse)\b/i.test(
+      s
+    )
+  ) {
+    return false;
+  }
+
+  // If it looks like "Name, 2 cups" or "Name - 2 cups", treat as ingredient.
+  if (/[,\-–]\s*\d/.test(s)) return true;
+
+  // If it contains a quantity and a unit, it is very likely an ingredient.
+  if (
+    /\b\d+(\.\d+)?\s*(cup|cups|tbsp|tablespoon|tablespoons|tsp|teaspoon|teaspoons|oz|ounce|ounces|lb|lbs|pound|pounds|g|gram|grams|kg|kilogram|kilograms|ml|milliliter|milliliters|l|liter|litre|liters|clove|cloves|slice|slices|can|cans|package|packages|stick|sticks|head|heads|bunch|bunches|pinch|dash|bag|bags|jar|jars|quart|quarts|pint|pints|gal|gallon|gallons)\b/i.test(
+      s
+    )
+  ) {
+    return true;
+  }
+
+  // Simple "Name, amount" without unit (e.g. "eggs, 3") is also fine.
+  if (/^[^,]+,\s*\d+(\.\d+)?\b/.test(s)) return true;
+
+  // Very short lines without numbers are more likely headings or noise.
+  if (!/\d/.test(s) && s.length < 20) return false;
+
+  return true;
+}
+
 /** Meal-plan rows like "Breakfast: Oatmeal" or "- Lunch: Sandwiches" — not grocery SKUs. */
 export function isMealPlanLine(line: string): boolean {
   const s = cleanGroceryLine(line).trim();
@@ -82,7 +116,8 @@ export function parseGroceryLines(text: string): string[] {
       if (
         cleaned.length > 1 &&
         !isStructuralPlanLine(line) &&
-        !isStructuralPlanLine(cleaned)
+        !isStructuralPlanLine(cleaned) &&
+        isLikelyGroceryItem(cleaned)
       ) {
         result.push(cleaned);
       }
@@ -101,14 +136,125 @@ export function parseGroceryLines(text: string): string[] {
     .map((l) => cleanGroceryLine(l))
     .filter((l, i) => {
       const raw = fallbackLines[i] ?? l;
-      return (
+      const looksLikeItem =
         l.length > 2 &&
         l.length < 120 &&
         !isStructuralPlanLine(raw) &&
-        !isStructuralPlanLine(l)
-      );
+        !isStructuralPlanLine(l) &&
+        isLikelyGroceryItem(l);
+      return looksLikeItem;
     });
-  return result.length ? result : fallback;
+  const base = result.length ? result : fallback;
+
+  // Try to aggregate quantities for repeated ingredients.
+  type Aggregated = { name: string; unit: string; quantity: number } | null;
+
+  function parseQuantityToken(token: string): number | null {
+    const t = token.trim();
+    if (!t) return null;
+    // Simple decimal, e.g. "1", "2.5"
+    if (/^\d+(\.\d+)?$/.test(t)) return parseFloat(t);
+    // Mixed number, e.g. "1 1/2"
+    const mixedMatch = /^(\d+)\s+(\d+)\/(\d+)$/.exec(t);
+    if (mixedMatch) {
+      const whole = parseInt(mixedMatch[1], 10);
+      const num = parseInt(mixedMatch[2], 10);
+      const den = parseInt(mixedMatch[3], 10);
+      if (!isNaN(whole) && !isNaN(num) && !isNaN(den) && den !== 0) {
+        return whole + num / den;
+      }
+    }
+    // Simple fraction, e.g. "1/2"
+    const fracMatch = /^(\d+)\/(\d+)$/.exec(t);
+    if (fracMatch) {
+      const num = parseInt(fracMatch[1], 10);
+      const den = parseInt(fracMatch[2], 10);
+      if (!isNaN(num) && !isNaN(den) && den !== 0) {
+        return num / den;
+      }
+    }
+    return null;
+  }
+
+  function parseAggregated(line: string): Aggregated {
+    const s = line.trim();
+    if (!s) return null;
+
+    // Pattern: "name, qty unit..." (recommended by the prompt, e.g. "cucumbers, 2" or "chicken breast, 4 lb")
+    const commaIdx = s.indexOf(",");
+    if (commaIdx > 0 && commaIdx < s.length - 1) {
+      const name = s.slice(0, commaIdx).trim();
+      const rest = s.slice(commaIdx + 1).trim();
+      if (name && rest) {
+        const parts = rest.split(/\s+/);
+        const qty = parseQuantityToken(parts[0] || "");
+        if (qty !== null) {
+          const unit = parts.slice(1).join(" ").trim();
+          return { name: name.toLowerCase(), unit: unit.toLowerCase(), quantity: qty };
+        }
+      }
+    }
+
+    // Fallback: "qty unit name" (e.g. "2 lb chicken breast")
+    const parts = s.split(/\s+/);
+    if (parts.length >= 2) {
+      const qty = parseQuantityToken(parts[0] || "");
+      if (qty !== null) {
+        const unit = parts[1] || "";
+        const name = parts.slice(2).join(" ").trim();
+        if (name) {
+          return { name: name.toLowerCase(), unit: unit.toLowerCase(), quantity: qty };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  const aggregated = new Map<string, Aggregated>();
+  const passthrough: string[] = [];
+
+  for (const line of base) {
+    const parsed = parseAggregated(line);
+    if (!parsed) {
+      passthrough.push(line);
+      continue;
+    }
+    const key = parsed.name + "||" + parsed.unit;
+    const existing = aggregated.get(key);
+    if (existing) {
+      existing.quantity += parsed.quantity;
+    } else {
+      aggregated.set(key, { ...parsed });
+    }
+  }
+
+  const out: string[] = [];
+
+  for (const [key, value] of aggregated.entries()) {
+    if (!value) continue;
+    const qty =
+      Number.isInteger(value.quantity) && Math.abs(value.quantity) < 1e6
+        ? String(value.quantity)
+        : value.quantity.toFixed(2).replace(/\.00$/, "");
+    const prettyName = value.name;
+    const prettyUnit = value.unit;
+    const line =
+      prettyUnit && prettyUnit.length
+        ? `${prettyName}, ${qty} ${prettyUnit}`.trim()
+        : `${prettyName}, ${qty}`;
+    out.push(line);
+  }
+
+  // Append passthrough lines, keeping their original order but avoiding duplicates with aggregated lines.
+  const seen = new Set(out);
+  for (const line of passthrough) {
+    if (seen.has(line)) continue;
+    seen.add(line);
+    out.push(line);
+  }
+
+  return out;
 }
 
 export function shortProductName(name: string): string {
