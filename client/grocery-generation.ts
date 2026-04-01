@@ -269,14 +269,18 @@ export function renderGeneratedResult(text: string): void {
 }
 
 function renderMealRegenerateControls(): void {
+  console.log("renderMealRegenerateControls");
   const container = document.getElementById("mealRegenerateList");
+  console.log("container", container);
   if (!container) return;
   const plan = appState.mealPlanJson as PlanJsonRoot | null;
+  console.log("plan", plan);
   if (!plan || !Array.isArray(plan.days) || !plan.days.length) {
     container.innerHTML = "";
     return;
   }
   const parts: string[] = [];
+  console.log("parts", parts);
   parts.push(
     '<div class="meal-regenerate-heading"><h4>Adjust individual meals</h4><p>Select a meal to regenerate a new suggestion that still respects your notes.</p></div>'
   );
@@ -306,6 +310,7 @@ function renderMealRegenerateControls(): void {
     }
     parts.push("</div>");
   }
+  console.log("parts2", parts);
   container.innerHTML = parts.join("");
 }
 
