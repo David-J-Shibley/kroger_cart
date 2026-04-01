@@ -168,8 +168,14 @@ Keep the day-by-day plan brief: short dish names only—no per-dish ingredient l
 - Put the consolidated list ONLY under a line that reads exactly "Grocery list:" or "Shopping list:" (then one shopping item per line, bullet or plain). Nothing before that line belongs in the store list.`;
 
   const tailNote = prefs.includeRecipes
-    ? `- After Recipes, output the consolidated grocery list as specified.`
-    : `- Be concise: short meal names and list items only.`;
+    ? `- After Recipes, output the consolidated grocery list as specified.
+- Finally, at the VERY END of your response, output one more line: INGREDIENTS_JSON: followed by a single compact JSON object on the next line, with this exact shape (no comments, no extra text after it):
+{"ingredients":[{"label":"chicken breast, 4 lb","name":"chicken breast","quantity":4,"unit":"lb"},{"label":"cucumbers, 3","name":"cucumbers","quantity":3,"unit":""}]}
+The "label" must match exactly what you put in the grocery list line for that ingredient. Include every ingredient exactly once in this JSON array. Do not put any other text after the JSON.`
+    : `- Be concise: short meal names and list items only.
+- Finally, at the VERY END of your response, output one more line: INGREDIENTS_JSON: followed by a single compact JSON object on the next line, with this exact shape (no comments, no extra text after it):
+{"ingredients":[{"label":"chicken breast, 4 lb","name":"chicken breast","quantity":4,"unit":"lb"},{"label":"cucumbers, 3","name":"cucumbers","quantity":3,"unit":""}]}
+The "label" must match exactly what you would put in the grocery list line for that ingredient. Include every ingredient exactly once in this JSON array. Do not put any other text after the JSON.`;
 
   return `You are helping plan meals and a grocery list. You must obey all dietary restrictions, allergies, and other constraints described by the user even if that limits variety.
 

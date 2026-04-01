@@ -24,6 +24,56 @@ import { syncAddAllToCartToolbar } from "./auto-cart-ui.js";
 
 const BULK_ADD_DELAY_MS = 400;
 
+interface IngredientJsonItem {
+  label?: string;
+  name?: string;
+  quantity?: number;
+  unit?: string;
+}
+
+interface IngredientsJsonPayload {
+  ingredients?: IngredientJsonItem[];
+}
+
+function extractIngredientLinesFromText(text: string): { lines: string[]; displayText: string } {
+  const marker = "INGREDIENTS_JSON:";
+  const idx = text.lastIndexOf(marker);
+  if (idx === -1) {
+    // No structured block; fall back to old parser.
+    return { lines: parseGroceryLines(text), displayText: text };
+  }
+
+  const before = text.slice(0, idx).trimEnd();
+  const afterMarker = text.slice(idx + marker.length);
+  const jsonLineMatch = afterMarker.match(/^[ \t]*\r?\n?([\s\S]+)$/);
+  const jsonRaw = jsonLineMatch ? jsonLineMatch[1].trim() : afterMarker.trim();
+
+  try {
+    const parsed = JSON.parse(jsonRaw) as IngredientsJsonPayload;
+    const items = Array.isArray(parsed.ingredients) ? parsed.ingredients : [];
+    const labels: string[] = [];
+    for (const item of items) {
+      if (!item) continue;
+      const label =
+        typeof item.label === "string" && item.label.trim()
+          ? item.label.trim()
+          : typeof item.name === "string" && item.name.trim()
+            ? item.name.trim()
+            : "";
+      if (!label) continue;
+      labels.push(label);
+    }
+    if (labels.length) {
+      // Use JSON-derived labels for cart, drop the JSON from the visible text.
+      return { lines: labels, displayText: before };
+    }
+  } catch {
+    // If JSON parsing fails, silently fall back.
+  }
+
+  return { lines: parseGroceryLines(text), displayText: before || text };
+}
+
 /**
  * Confirms `apiOrigin` hits Express (JSON /api/health) and the server has a Featherless key.
  * Uses a simple fetch (no app cookies) so it works before sign-in.
@@ -103,14 +153,15 @@ export function renderGeneratedResult(text: string): void {
   const listEl = document.getElementById("generated-list");
   if (!out || !cartSection || !listEl) return;
   out.style.display = "block";
+  const { lines: ingredientLines, displayText } = extractIngredientLinesFromText(text);
   out.innerHTML =
     '<pre class="generated-text">' +
-    escapeHtml(text) +
+    escapeHtml(displayText) +
     '</pre><p class="generated-actions">' +
     '<button type="button" onclick="saveLLMToStorage()">Save to storage</button>' +
     '<button type="button" class="btn-secondary" onclick="copyGroceryListToClipboard()">Copy grocery list</button>' +
     "</p>";
-  const items = parseGroceryLines(text);
+  const items = ingredientLines;
   if (items.length) {
     listEl.innerHTML = items
       .map(
@@ -166,7 +217,7 @@ export function loadExampleMealPlan(): void {
 }
 
 export async function copyGroceryListToClipboard(): Promise<void> {
-  const lines = parseGroceryLines(appState.lastGeneratedText);
+  const { lines } = extractIngredientLinesFromText(appState.lastGeneratedText);
   if (!lines.length) {
     alert("No grocery list to copy. Generate a list first.");
     return;
@@ -223,7 +274,7 @@ export async function addAllGroceryToCart(): Promise<void> {
     );
     return;
   }
-  const lines = parseGroceryLines(appState.lastGeneratedText);
+  const { lines } = extractIngredientLinesFromText(appState.lastGeneratedText);
   if (!lines.length) {
     alert("No grocery lines to add. Generate a list first.");
     return;
