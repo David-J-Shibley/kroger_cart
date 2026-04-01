@@ -740,7 +740,37 @@ function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
   if (planIdx === -1) return undefined;
   const planRaw = text.slice(planIdx + planMarker.length);
   try {
-    return JSON.parse(planRaw) as PlanJsonRoot;
+    if (planIdx !== -1) {
+      const afterPlan = text.slice(planIdx + planMarker.length);
+      const planMatch = afterPlan.match(/^[ \t]*\r?\n?([\s\S]+)$/);
+      let planRaw = planMatch ? planMatch[1].trim() : afterPlan.trim();
+      // Strip markdown code fences like ```json ... ``` if present
+      if (planRaw.startsWith("```")) {
+        planRaw = planRaw.replace(/^```[a-zA-Z]*\s*/i, "").replace(/```$/, "").trim();
+      }
+      try {
+        // eslint-disable-next-line no-console
+        console.log("PLAN_JSON raw block (cleaned):", planRaw);
+        const parsed = JSON.parse(planRaw) as any;
+        // Normalize shape: some models wrap grocery as a separate "day" object
+        let parsedPlan: PlanJsonRoot = parsed;
+        if (!parsedPlan.grocery && Array.isArray(parsed.days)) {
+          const last = parsed.days[parsed.days.length - 1] as any;
+          if (last && last.grocery) {
+            parsedPlan = {
+              days: parsed.days.slice(0, parsed.days.length - 1),
+              grocery: last.grocery,
+            };
+          }
+        }
+        // eslint-disable-next-line no-console
+        console.log("Parsed PLAN_JSON normalized:", parsedPlan);
+        return parsedPlan;
+      } catch {
+        // ignore PLAN_JSON parse errors; keep going
+      }
+    }
+    return undefined;
   } catch {
     return undefined;
   }
