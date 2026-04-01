@@ -97,6 +97,21 @@ function isLikelyGroceryItem(line: string): boolean {
   return false;
 }
 
+/** Lightweight filter for cart labels coming from structured JSON. Only blocks obvious instructions. */
+export function isIngredientLabelForCart(line: string): boolean {
+  const s = (line || "").trim();
+  if (!s) return false;
+  // Reuse the same leading-verb heuristic to filter steps like "Add black beans..." etc.
+  if (
+    /^(preheat|cook|bake|simmer|boil|grill|roast|stir|mix|combine|whisk|season|serve|let\s+rest|let\s+cool|arrange|top|fold|pour|transfer|spread|layer|chill|marinate|drain|rinse|toast|toss|place|add)\b/i.test(
+      s
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /** Meal-plan rows like "Breakfast: Oatmeal" or "- Lunch: Sandwiches" — not grocery SKUs. */
 export function isMealPlanLine(line: string): boolean {
   const s = cleanGroceryLine(line).trim();

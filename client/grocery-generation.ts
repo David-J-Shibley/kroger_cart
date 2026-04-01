@@ -8,7 +8,7 @@ import {
   getLlmProxyPrefix,
   tryGetPublicConfig,
 } from "./public-config.js";
-import { escapeHtml, parseGroceryLines } from "./html-utils.js";
+import { escapeHtml, isIngredientLabelForCart, parseGroceryLines } from "./html-utils.js";
 import {
   buildMealPlanPrompt,
   mealPlanNumPredict,
@@ -61,6 +61,7 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
             ? item.name.trim()
             : "";
       if (!label) continue;
+      if (!isIngredientLabelForCart(label)) continue;
       labels.push(label);
     }
     if (labels.length) {
