@@ -224,6 +224,7 @@ export function renderGeneratedResult(text: string): void {
     (parsedPlanFromText as PlanJsonRoot | undefined) ||
     (appState.mealPlanJson as PlanJsonRoot | undefined) ||
     undefined;
+  console.log("planShape", Array.isArray(plan?.days), plan);
   if (plan) appState.mealPlanJson = plan;
   renderMealRegenerateControls(plan);
   const items = ingredientLines;
