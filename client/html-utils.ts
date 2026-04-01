@@ -126,6 +126,7 @@ export function parseGroceryLines(text: string): string[] {
   const listHeaders = /^(grocery|shopping)\s*list\s*:?\s*\**$/i;
   for (const line of lines) {
     const normalized = (line || "").replace(/^\*+|\*+$/g, "").trim();
+    if (/^ingredients_json\s*:/i.test(normalized)) continue;
     if (listHeaders.test(normalized) || /^(grocery|shopping)\s*list\s*:?\s*$/i.test(normalized)) {
       inList = true;
       continue;
