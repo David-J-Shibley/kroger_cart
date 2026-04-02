@@ -159,7 +159,7 @@
                 <div class="app-disclosure__body">
                   <div class="kroger-store-location" id="krogerStoreLocationBlock">
                     <label for="krogerStoreUrlInput" class="kroger-store-location__field-label">Store URL or numeric id</label>
-                    <p class="kroger-store-location__lead">First, find your store at <a href="https://www.kroger.com/stores/search" target="_blank" rel="noreferrer">kroger.com/stores/search</a>. On the store page, copy the URL and paste it here—we take the last number in the path (e.g. …/014/<strong>00513</strong>).</p>
+                    <p class="kroger-store-location__lead">First, find your store at <a href="https://www.kroger.com/stores/search" target="_blank" rel="noreferrer">kroger.com/stores/search</a>. On the store page, copy the URL and paste it here—we build Kroger’s required 8-character store id from the path (e.g. …/<strong>014</strong>/<strong>00513</strong> → <strong>01400513</strong>).</p>
                     <div class="kroger-store-location__row">
                       <input type="text" id="krogerStoreUrlInput" class="kroger-store-location__input" autocomplete="off" placeholder="https://www.kroger.com/stores/grocery/…" />
                       <button type="button" id="krogerStoreApplyBtn" class="kroger-store-location__apply">Apply</button>

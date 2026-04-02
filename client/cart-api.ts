@@ -5,7 +5,12 @@ import {
   getKrogerUserTokenOrRefresh,
   refreshKrogerLinkedFromApi,
 } from "./kroger-tokens.js";
-import { ensurePublicConfig, getBackendOrigin, tryGetPublicConfig } from "./public-config.js";
+import {
+  ensurePublicConfig,
+  getBackendOrigin,
+  getKrogerLocationId,
+  tryGetPublicConfig,
+} from "./public-config.js";
 import { shortProductName } from "./html-utils.js";
 import type { KrogerCartResponse, KrogerProduct } from "./types.js";
 
@@ -39,8 +44,17 @@ export async function addProductToCart(
   const fileProto = window.location.protocol === "file:";
   const krogerBase = fileProto ? "https://api.kroger.com" : "";
   const krogerPrefix = fileProto ? "" : getBackendOrigin() + "/kroger-api";
+  const locationId = getKrogerLocationId();
+  if (!locationId) {
+    alert(
+      "Kroger needs your store to add to cart: paste your store page URL (or 8-digit store id) under Store location, then Apply."
+    );
+    return false;
+  }
+
   const cartUrl = krogerBase + krogerPrefix + "/v1/cart/add";
   const itemData = {
+    locationId,
     items: [
       {
         quantity,
@@ -67,6 +81,8 @@ export async function addProductToCart(
     } catch {
       result = {};
     }
+    const errReason = (result as unknown as { errors?: { reason?: string; code?: string } }).errors
+      ?.reason;
     if (response.status === 403) {
       const err = result as unknown as { error?: string; code?: string };
       if (err.error === "subscription_required") {
@@ -86,7 +102,8 @@ export async function addProductToCart(
     }
     if (!response.ok) {
       alert(
-        "Error adding to cart: " + (result.message || result.code || response.status)
+        "Error adding to cart: " +
+          (errReason || result.message || result.code || response.status)
       );
       return false;
     }

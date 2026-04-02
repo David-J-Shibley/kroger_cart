@@ -45,7 +45,7 @@ function applyKrogerStoreFromInput(): void {
   const parsed = extractKrogerStoreIdFromUserInput(input.value);
   if (!parsed) {
     alert(
-      "Could not find a store id. Paste a full URL like https://www.kroger.com/stores/grocery/…/00513 or enter digits only (e.g. 00513)."
+      "Could not find a store id. Paste the full store page URL (we combine …/014/00513 into Kroger’s 8-character location id) or enter digits only."
     );
     return;
   }

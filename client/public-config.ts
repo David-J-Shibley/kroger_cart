@@ -1,6 +1,7 @@
 /** Public deployment settings from static `deploy-config.json` (same origin as the HTML). No /api/public-config. */
 
 import { SAVED_KROGER_LOCATION_ID_KEY } from "./config.js";
+import { normalizeKrogerLocationIdForApi } from "./kroger-store-url.js";
 
 export interface PublicConfig {
   krogerClientId: string;
@@ -174,13 +175,15 @@ export function apiUrl(path: string): string {
 }
 
 export function getKrogerLocationId(): string {
+  let raw = "";
   try {
     const saved = localStorage.getItem(SAVED_KROGER_LOCATION_ID_KEY);
-    if (saved != null && saved.trim() !== "") return saved.trim();
+    if (saved != null && saved.trim() !== "") raw = saved.trim();
   } catch {
     /* storage blocked */
   }
-  return (tryGetPublicConfig()?.krogerLocationId ?? "").trim();
+  if (!raw) raw = (tryGetPublicConfig()?.krogerLocationId ?? "").trim();
+  return normalizeKrogerLocationIdForApi(raw) ?? "";
 }
 
 export function getLlmProxyPrefix(): string {
