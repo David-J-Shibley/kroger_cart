@@ -15,6 +15,7 @@ import {
   persistMealPlanPrefs,
   readMealPlanPrefsFromForm,
 } from "./meal-plan.js";
+import type { MealPlanPrefs } from "./meal-plan.js";
 import type { LlmStreamLine } from "./types.js";
 import { EXAMPLE_MEAL_PLAN_TEXT } from "./example-meal-plan.js";
 import { showBulkAddKrogerFollowup } from "./kroger-app-launch.js";
@@ -55,6 +56,149 @@ interface PlanJsonRoot {
   grocery?: IngredientsJsonPayload;
 }
 
+const MEAL_TYPE_ORDER: Record<string, number> = {
+  breakfast: 0,
+  brunch: 1,
+  lunch: 2,
+  dinner: 3,
+  snack: 4,
+};
+
+function clampPlanDays(n: number): number {
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(14, Math.max(1, Math.round(n)));
+}
+
+function expectedMealSlots(prefs: MealPlanPrefs): number {
+  const days = clampPlanDays(prefs.days);
+  let per = 0;
+  if (prefs.includeBreakfast) per++;
+  if (prefs.includeLunch) per++;
+  if (prefs.includeDinner) per++;
+  if (per === 0) per = 1;
+  return days * per;
+}
+
+function countStructuredMeals(plan: PlanJsonRoot): number {
+  let n = 0;
+  for (const day of plan.days ?? []) {
+    for (const meal of day.meals ?? []) {
+      if (meal?.dishId && meal?.name) n++;
+    }
+  }
+  return n;
+}
+
+function mealTypeMatchesPrefs(type: string, prefs: MealPlanPrefs): boolean {
+  const t = type.toLowerCase();
+  if (t === "breakfast" || t === "brunch") return prefs.includeBreakfast;
+  if (t === "lunch") return prefs.includeLunch;
+  if (t === "dinner") return prefs.includeDinner;
+  return false;
+}
+
+/** Recover meal rows from prose when PLAN_JSON only echoed the prompt's single-meal example. */
+function extractMealsFromOverviewText(text: string, prefs: MealPlanPrefs): PlanJsonMeal[] {
+  const seen = new Set<string>();
+  const meals: PlanJsonMeal[] = [];
+  const lines = text.split(/\r?\n/);
+  let currentDay = 1;
+  const maxDay = clampPlanDays(prefs.days);
+
+  const recipeLineRe =
+    /^\s*(?:#{1,6}\s*)?Day\s+(\d+)\s*[—\-–]\s*(breakfast|lunch|dinner|brunch|snack)\s*:\s*(.+)$/i;
+  const dayHeadingRe =
+    /^\s*(?:#{1,6}\s*)?Day\s+(\d+)\b(?!\s*[—\-–]\s*(?:breakfast|lunch|dinner|brunch|snack)\s*:)/i;
+  const bulletMealRe = /^\s*[-*]\s*(breakfast|lunch|dinner|brunch|snack)\s*:\s*(.+)$/i;
+
+  for (const line of lines) {
+    const rm = line.match(recipeLineRe);
+    if (rm) {
+      const day = parseInt(rm[1], 10);
+      const type = rm[2].toLowerCase();
+      const name = rm[3].trim();
+      if (
+        name &&
+        Number.isFinite(day) &&
+        day >= 1 &&
+        day <= maxDay &&
+        mealTypeMatchesPrefs(type, prefs)
+      ) {
+        const dishId = `day${day}-${type}-1`;
+        if (!seen.has(dishId)) {
+          seen.add(dishId);
+          meals.push({ dishId, type, name, notes: "", ingredients: [], steps: [] });
+        }
+      }
+      continue;
+    }
+
+    const dm = line.match(dayHeadingRe);
+    if (dm) {
+      const d = parseInt(dm[1], 10);
+      if (Number.isFinite(d) && d >= 1 && d <= maxDay) currentDay = d;
+      continue;
+    }
+
+    const bm = line.match(bulletMealRe);
+    if (bm) {
+      const type = bm[1].toLowerCase();
+      const name = bm[2].trim();
+      if (name && mealTypeMatchesPrefs(type, prefs)) {
+        const dishId = `day${currentDay}-${type}-1`;
+        if (!seen.has(dishId)) {
+          seen.add(dishId);
+          meals.push({ dishId, type, name, notes: "", ingredients: [], steps: [] });
+        }
+      }
+    }
+  }
+  return meals;
+}
+
+function groupMealsIntoDays(meals: PlanJsonMeal[], maxDay: number): PlanJsonDay[] {
+  const byDay = new Map<number, PlanJsonMeal[]>();
+  for (const m of meals) {
+    const id = String(m.dishId || "");
+    const dm = id.match(/^day(\d+)-/i);
+    const day = dm ? parseInt(dm[1], 10) : 1;
+    if (day < 1 || day > maxDay) continue;
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day)!.push(m);
+  }
+  const days: PlanJsonDay[] = [];
+  for (let d = 1; d <= maxDay; d++) {
+    const ms = byDay.get(d);
+    if (!ms?.length) continue;
+    ms.sort(
+      (a, b) =>
+        (MEAL_TYPE_ORDER[(a.type || "").toLowerCase()] ?? 9) -
+        (MEAL_TYPE_ORDER[(b.type || "").toLowerCase()] ?? 9)
+    );
+    days.push({ day: d, label: `Day ${d}`, meals: ms });
+  }
+  return days;
+}
+
+function hydratePlanMealsIfIncomplete(
+  parsedPlan: PlanJsonRoot,
+  overviewText: string,
+  prefs: MealPlanPrefs
+): PlanJsonRoot {
+  const expected = expectedMealSlots(prefs);
+  const actual = countStructuredMeals(parsedPlan);
+  if (actual >= expected) return parsedPlan;
+
+  const extracted = extractMealsFromOverviewText(overviewText, prefs);
+  if (extracted.length <= actual) return parsedPlan;
+
+  const maxDay = clampPlanDays(prefs.days);
+  const days = groupMealsIntoDays(extracted, maxDay);
+  if (!days.length) return parsedPlan;
+
+  return { ...parsedPlan, days };
+}
+
 function extractIngredientLinesFromText(text: string): { lines: string[]; displayText: string } {
   const planMarker = "PLAN_JSON:";
   const planIdx = text.lastIndexOf(planMarker);
@@ -93,7 +237,8 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
         }
       }
 
-      appState.mealPlanJson = parsedPlan;
+      const prefs = readMealPlanPrefsFromForm();
+      appState.mealPlanJson = hydratePlanMealsIfIncomplete(parsedPlan, before, prefs);
 
       // Use grocery.ingredients in PLAN_JSON as the primary source of ingredient lines.
       if (parsedPlan?.grocery?.ingredients) {
@@ -221,14 +366,8 @@ export function renderGeneratedResult(text: string): void {
     '<button type="button" onclick="saveLLMToStorage()">Save to storage</button>' +
     '<button type="button" class="btn-secondary" onclick="copyGroceryListToClipboard()">Copy grocery list</button>' +
     '</p><div id="mealRegenerateList" class="meal-regenerate-list"></div>';
-  // Use the structured plan we parsed earlier (if any) to drive the regenerate UI.
   const plan = appState.mealPlanJson as PlanJsonRoot | null;
-  console.log("planShape", Array.isArray(plan?.days), plan);
-  if (Array.isArray(plan?.days)) {
-    renderMealRegenerateControls(plan);
-  } else {
-    renderMealRegenerateControls(getMessageText(plan as { message: { content: string } }));
-  }
+  renderMealRegenerateControls(plan ?? undefined);
   const items = ingredientLines;
   if (items.length) {
     listEl.innerHTML = items
@@ -764,9 +903,4 @@ function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
   } catch {
     return undefined;
   }
-}
-
-function getMessageText(plan: { message: { content: string } }): PlanJsonRoot | undefined {
-  console.log("getMessageText", plan.message.content);
-  return JSON.parse(plan.message.content) as PlanJsonRoot;
 }
