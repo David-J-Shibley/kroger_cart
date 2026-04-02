@@ -19,6 +19,7 @@ import {
   generateGroceryList,
   loadExampleMealPlan,
   loadSavedLLM,
+  openMealPlanFromUrlHashIfPresent,
   saveLLMToStorage,
   setAllGroceryLineChecks,
 } from "./grocery-generation.js";
@@ -202,6 +203,9 @@ async function init(): Promise<void> {
   }
   await syncCheckoutIfNeeded();
   await updateAccountBar();
+  if (cfg) {
+    await openMealPlanFromUrlHashIfPresent();
+  }
 }
 
 /** After Stripe redirect, activate subscription in DynamoDB (webhooks often miss localhost). */

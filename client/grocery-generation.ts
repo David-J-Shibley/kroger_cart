@@ -867,6 +867,89 @@ async function pollMealPlanJob(jobId: string): Promise<void> {
   }
 }
 
+/** Parse `#job=<id>` (e.g. from jobs.html “Open plan”). */
+export function parseMealPlanJobIdFromHash(hash: string): string | null {
+  if (!hash || hash === "#") return null;
+  const raw = hash.startsWith("#") ? hash.slice(1) : hash;
+  const id = new URLSearchParams(raw).get("job")?.trim();
+  return id || null;
+}
+
+/**
+ * Load a finished or in-progress meal-plan job (used when the home page is opened with `#job=…`).
+ */
+export async function loadMealPlanFromJobId(jobId: string): Promise<void> {
+  const out = document.getElementById("generated");
+  if (out) {
+    out.style.display = "block";
+    out.innerHTML = '<pre class="generated-text">Loading meal plan…</pre>';
+  }
+
+  try {
+    await ensurePublicConfig();
+    const res = await fetch(apiUrl(`/api/meal-plan-jobs/${jobId}`), mergeAppAuth({ method: "GET" }));
+    const bodyText = await res.text();
+    if (!res.ok) {
+      if (out) {
+        out.innerHTML =
+          '<pre class="generated-text">' +
+          escapeHtml(
+            "Could not open this meal plan (HTTP " +
+              res.status +
+              "). If you are signed out, sign in and try again from Meal plan jobs.\n\n" +
+              bodyText.slice(0, 400)
+          ) +
+          "</pre>";
+      }
+      return;
+    }
+    let job: { status: string; resultText?: string; error?: string };
+    try {
+      job = JSON.parse(bodyText) as { status: string; resultText?: string; error?: string };
+    } catch {
+      if (out) {
+        out.innerHTML =
+          '<pre class="generated-text">' + escapeHtml("Invalid response when loading job.") + "</pre>";
+      }
+      return;
+    }
+
+    if (job.status === "succeeded" && job.resultText) {
+      renderGeneratedResult(job.resultText);
+      document.getElementById("generated")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    if (job.status === "failed") {
+      if (out) {
+        out.innerHTML =
+          '<pre class="generated-text">' +
+          escapeHtml(job.error || "Meal plan job failed.") +
+          "</pre>";
+      }
+      return;
+    }
+    await pollMealPlanJob(jobId);
+  } catch (err) {
+    console.error(err);
+    if (out) {
+      out.innerHTML =
+        '<pre class="generated-text">' +
+        escapeHtml(err instanceof Error ? err.message : String(err)) +
+        "</pre>";
+    }
+  }
+}
+
+/** If the URL hash is `#job=<uuid>`, fetch that job and show the plan; then strip the hash. */
+export async function openMealPlanFromUrlHashIfPresent(): Promise<void> {
+  const jobId = parseMealPlanJobIdFromHash(window.location.hash || "");
+  if (!jobId) return;
+  await loadMealPlanFromJobId(jobId);
+  const url = new URL(window.location.href);
+  url.hash = "";
+  window.history.replaceState({}, "", url.pathname + url.search);
+}
+
 function extractPlanJsonFromText(text: string): PlanJsonRoot | undefined {
   const planMarker = "PLAN_JSON:";
   const planIdx = text.lastIndexOf(planMarker);
