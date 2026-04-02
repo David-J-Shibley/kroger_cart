@@ -95,7 +95,7 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
 
       appState.mealPlanJson = parsedPlan;
 
-      // Use grocery.ingredients in PLAN_JSON as the single source of ingredient lines.
+      // Use grocery.ingredients in PLAN_JSON as the primary source of ingredient lines.
       if (parsedPlan?.grocery?.ingredients) {
         const labels: string[] = [];
         for (const item of parsedPlan.grocery.ingredients) {
@@ -110,7 +110,10 @@ function extractIngredientLinesFromText(text: string): { lines: string[]; displa
           if (!isIngredientLabelForCart(label)) continue;
           labels.push(label);
         }
-        if (labels.length) {
+        // Heuristic: trust PLAN_JSON only when it returns a reasonable number
+        // of ingredients. If the model only emitted one or two items here,
+        // fall back to parsing the human-readable grocery list instead.
+        if (labels.length >= 3) {
           ingredientLines = labels;
         }
       }
