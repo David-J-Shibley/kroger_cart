@@ -458,6 +458,63 @@ export function regenerateMealByDishId(dishId: string): void {
 (window as unknown as { regenerateMealByDishId?: (dishId: string) => void }).regenerateMealByDishId =
   regenerateMealByDishId;
 
+/** First balanced `{…}` in `src` (tolerates LLM wrappers). */
+function extractFirstJsonObject(src: string): string | null {
+  const text = src.trim();
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"' && text[i - 1] !== "\\") {
+      inString = !inString;
+    }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+  return null;
+}
+
+function parsePlanJsonFromLlmText(raw: string): PlanJsonRoot {
+  let candidate = raw;
+  try {
+    const maybeObj = JSON.parse(raw) as { message?: { content?: string } };
+    if (maybeObj && typeof maybeObj === "object" && typeof maybeObj.message?.content === "string") {
+      candidate = maybeObj.message.content;
+    }
+  } catch {
+    /* raw might already just be the JSON text */
+  }
+  const jsonFragment = extractFirstJsonObject(candidate);
+  if (!jsonFragment) {
+    throw new Error("No JSON object found in model response.");
+  }
+  return JSON.parse(jsonFragment) as PlanJsonRoot;
+}
+
+function applyRegenerateJobResult(mergeBase: string, resultText: string): boolean {
+  let updatedPlan: PlanJsonRoot;
+  try {
+    updatedPlan = parsePlanJsonFromLlmText(resultText);
+  } catch (e) {
+    console.error("Failed to parse updated PLAN_JSON", e, resultText);
+    alert("The model returned an invalid PLAN_JSON. Try again in a moment.");
+    return false;
+  }
+  appState.mealPlanJson = updatedPlan;
+  const baseText = mergeBase.trim() || appState.generatedDisplayText || appState.lastGeneratedText || "";
+  const newText = baseText + "\n\nPLAN_JSON:\n" + JSON.stringify(updatedPlan);
+  renderGeneratedResult(newText);
+  return true;
+}
+
 async function doRegenerateMealByDishId(dishId: string): Promise<void> {
   const plan = appState.mealPlanJson as PlanJsonRoot | null;
   if (!plan) {
@@ -466,55 +523,11 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
   }
   const notesEl = document.getElementById("mealPlanNotes") as HTMLTextAreaElement | null;
   const notes = (notesEl?.value ?? "").trim();
-
-  // Find the current meal to avoid trivial repeats.
-  let currentMealSummary = "";
-  outer: for (const day of plan.days ?? []) {
-    for (const meal of day.meals ?? []) {
-      if (meal?.dishId === dishId) {
-        currentMealSummary = JSON.stringify(
-          {
-            dishId: meal.dishId,
-            type: meal.type,
-            name: meal.name,
-            ingredients: meal.ingredients,
-          },
-          null,
-          2
-        );
-        break outer;
-      }
-    }
-  }
-
-  const prompt =
-    "You are updating an existing meal plan.\n\n" +
-    "The current structured plan is below as JSON (PLAN_JSON). You must return an updated PLAN_JSON in exactly the same shape (no extra fields, no comments, no trailing commas, and no additional text before or after the JSON).\n\n" +
-    "Existing PLAN_JSON:\n" +
-    JSON.stringify(plan) +
-    "\n\n" +
-    "User dietary notes and preferences (you must continue to respect these strictly):\n" +
-    (notes || "(none specified)") +
-    "\n\n" +
-    "Task:\n" +
-    "- Replace exactly one meal whose dishId is \"" +
-    dishId +
-    '" with a new dish.\n' +
-    "- Keep all other days and meals unchanged.\n" +
-    "- The new dish must be meaningfully different from the current one shown below (different main protein or base, and not just small wording changes).\n" +
-    "- Do NOT reuse the existing dish name or a trivially similar variation.\n" +
-    "- The new dish should fit the same meal type (breakfast, lunch, or dinner) and feel consistent with the rest of the plan.\n" +
-    "- Update the grocery.ingredients array so it reflects the full set of ingredients after this change, with each consolidated ingredient listed exactly once.\n" +
-    "- Do not change any other structure, and do not include recipes text or headings—only the updated PLAN_JSON object.\n\n" +
-    "Current meal to replace (for reference; make the new dish clearly different from this):\n" +
-    (currentMealSummary || "(current meal not found by dishId; still replace by dishId)") +
-    "\n\n" +
-    "Now respond with ONLY the updated PLAN_JSON as a single compact JSON object (no surrounding prose).";
+  const mergeBase = appState.generatedDisplayText || appState.lastGeneratedText || "";
 
   try {
     setMealRegenerateLoading(true);
     await ensurePublicConfig();
-    const llmPrefix = getLlmProxyPrefix();
     const pub = tryGetPublicConfig();
     if (pub?.authRequired) {
       const me = await fetch(apiUrl("/api/me"), mergeAppAuth({ method: "GET" }));
@@ -523,90 +536,27 @@ async function doRegenerateMealByDishId(dishId: string): Promise<void> {
         return;
       }
     }
-    const response = await fetch(
-      getAppOrigin() + llmPrefix + "/api/chat",
-      mergeAppAuth({
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
-          stream: false,
-          options: { num_predict: 2048 },
-        }),
-      })
-    );
-    if (!response.ok) {
-      const body = await response.text();
-      let detail = "LLM request failed (HTTP " + response.status + ")";
-      try {
-        const json = JSON.parse(body) as { error?: string; error_description?: string };
-        if (typeof json.error_description === "string" && json.error_description.trim()) {
-          detail = json.error_description.trim();
-        } else if (typeof json.error === "string" && json.error.trim()) {
-          detail = json.error.trim();
-        }
-      } catch {
-        /* leave detail as-is */
-      }
-      throw new Error(detail);
+
+    const res = await fetch(apiUrl("/api/meal-plan-jobs"), mergeAppAuth({
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        regenerate: true,
+        dishId,
+        plan,
+        notes,
+      }),
+    }));
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Regenerate job failed to start (HTTP ${res.status}): ${body}`);
     }
-    const raw = await response.text();
+    const { jobId } = (await res.json()) as { jobId: string };
 
-    // Helper to extract the first complete JSON object from a string, tolerating
-    // provider wrappers and trailing metadata.
-    const extractFirstJsonObject = (src: string): string | null => {
-      const text = src.trim();
-      const start = text.indexOf("{");
-      if (start === -1) return null;
-      let depth = 0;
-      let inString = false;
-      for (let i = start; i < text.length; i++) {
-        const ch = text[i];
-        if (ch === '"' && text[i - 1] !== "\\") {
-          inString = !inString;
-        }
-        if (inString) continue;
-        if (ch === "{") depth++;
-        else if (ch === "}") {
-          depth--;
-          if (depth === 0) {
-            return text.slice(start, i + 1);
-          }
-        }
-      }
-      return null;
-    };
-
-    let updatedPlan: PlanJsonRoot;
-    try {
-      // Some providers return a JSON envelope with message.content.
-      let candidate = raw;
-      try {
-        const maybeObj = JSON.parse(raw) as { message?: { content?: string } };
-        if (maybeObj && typeof maybeObj === "object" && typeof maybeObj.message?.content === "string") {
-          candidate = maybeObj.message.content;
-        }
-      } catch {
-        /* raw might already just be the JSON text */
-      }
-      const jsonFragment = extractFirstJsonObject(candidate);
-      if (!jsonFragment) {
-        throw new Error("No JSON object found in model response.");
-      }
-      updatedPlan = JSON.parse(jsonFragment) as PlanJsonRoot;
-    } catch (e) {
-      console.error("Failed to parse updated PLAN_JSON", e, raw);
-      alert("The model returned an invalid PLAN_JSON. Try again in a moment.");
-      return;
+    const regenOk = await pollMealPlanJob(jobId, { regenerateMergeBase: mergeBase });
+    if (regenOk) {
+      alert("Meal updated. Review the new ingredients and cart lines.");
     }
-
-    appState.mealPlanJson = updatedPlan;
-
-    const baseText =
-      appState.generatedDisplayText || appState.lastGeneratedText || appState.lastGeneratedText;
-    const newText = baseText + "\n\nPLAN_JSON:\n" + JSON.stringify(updatedPlan);
-    renderGeneratedResult(newText);
-    alert("Meal updated. Review the new ingredients and cart lines.");
   } catch (err) {
     console.error(err);
     const msg =
@@ -813,9 +763,18 @@ export async function generateGroceryList(): Promise<void> {
   }
 }
 
-async function pollMealPlanJob(jobId: string): Promise<void> {
-  const out = document.getElementById("generated");
+
+type PollMealPlanJobOptions = {
+  /** Job result is JSON-only; merge onto this text before `PLAN_JSON:` so the visible plan stays intact. */
+  regenerateMergeBase?: string;
+};
+
+/** @returns true when the plan UI was updated successfully */
+async function pollMealPlanJob(jobId: string, opts?: PollMealPlanJobOptions): Promise<boolean> {
+  const regen = Boolean(opts && Object.prototype.hasOwnProperty.call(opts, "regenerateMergeBase"));
+  const out = regen ? null : document.getElementById("generated");
   const pre = out?.querySelector("pre");
+  const regenStatus = document.getElementById("mealRegenerateStatus");
   let attempts = 0;
 
   while (true) {
@@ -835,16 +794,32 @@ async function pollMealPlanJob(jobId: string): Promise<void> {
       };
 
       if (job.status === "succeeded" && job.resultText) {
+        if (regen) {
+          return applyRegenerateJobResult(opts!.regenerateMergeBase!, job.resultText);
+        }
         renderGeneratedResult(job.resultText);
-        return;
+        return true;
       }
       if (job.status === "failed") {
         const errMsg = job.error || "Meal plan job failed.";
-        if (out) out.textContent = "Error: " + errMsg;
-        return;
+        if (regen) {
+          if (regenStatus) regenStatus.textContent = "";
+          alert(errMsg);
+        } else if (out) {
+          out.textContent = "Error: " + errMsg;
+        }
+        return false;
       }
 
-      if (pre) {
+      if (regen) {
+        if (regenStatus) {
+          regenStatus.textContent =
+            "Regenerate job " +
+            job.status +
+            "… (you can leave this page — check Meal plan jobs). Job id: " +
+            jobId;
+        }
+      } else if (pre) {
         pre.textContent =
           "Meal-plan job " +
           job.status +
@@ -853,12 +828,16 @@ async function pollMealPlanJob(jobId: string): Promise<void> {
       }
     } catch (err) {
       console.error(err);
-      if (out) {
-        out.textContent =
-          "Error while checking job status. You can refresh the page and try again.\n" +
-          (err instanceof Error ? err.message : String(err));
+      const msg =
+        "Error while checking job status. You can refresh the page and try again.\n" +
+        (err instanceof Error ? err.message : String(err));
+      if (regen) {
+        if (regenStatus) regenStatus.textContent = "";
+        alert(msg);
+      } else if (out) {
+        out.textContent = msg;
       }
-      return;
+      return false;
     }
 
     // simple backoff: 1.5s, up to ~30 attempts (~45s)

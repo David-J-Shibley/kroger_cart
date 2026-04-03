@@ -88,7 +88,8 @@ export function createApp(): express.Express {
     });
   });
 
-  const jsonBody = express.json({ limit: "100kb" });
+  /** Meal-plan regenerate jobs POST a large `plan` JSON alongside metadata. */
+  const jsonBody = express.json({ limit: "1mb" });
 
   app.post("/api/auth/cognito-token", authExchangeLimiter, jsonBody, postCognitoToken);
   app.delete("/api/auth/session", deleteAppSessionHandler);
@@ -111,8 +112,6 @@ export function createApp(): express.Express {
   api.post("/billing/portal", postBillingPortal);
   api.post("/meal-plan-jobs", postMealPlanJob);
   api.get("/meal-plan-jobs", listMealPlanJobs);
-  api.get("/meal-plan-jobs/:jobId", getMealPlanJob);
-  api.post("/meal-plan-jobs", postMealPlanJob);
   api.get("/meal-plan-jobs/:jobId", getMealPlanJob);
   app.use("/api", api);
 

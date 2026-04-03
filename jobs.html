@@ -20,6 +20,7 @@
             </a>
           </h1>
           <a class="feedback-link" href="/feedback.html">Feedback</a>
+          <a class="feedback-link" href="/jobs.html" aria-current="page">Meal plan jobs</a>
           <a id="adminLink" class="feedback-link" href="/admin.html" style="display:none">Admin</a>
         </div>
       </div>
@@ -71,15 +72,19 @@
           const rows = jobs.map((job) => {
             const status = job.status;
             const created = job.createdAt ? new Date(job.createdAt).toLocaleString() : "";
-            const people = job.prefs?.people ?? "?";
-            const days = job.prefs?.days ?? "?";
-            const meals = [
-              job.prefs?.includeBreakfast ? "Breakfast" : null,
-              job.prefs?.includeLunch ? "Lunch" : null,
-              job.prefs?.includeDinner ? "Dinner" : null,
-            ]
-              .filter(Boolean)
-              .join(", ");
+            const jobKind = job.jobKind || "full";
+            const isRegenerate = jobKind === "regenerate";
+            const people = isRegenerate ? "—" : job.prefs?.people ?? "?";
+            const days = isRegenerate ? "—" : job.prefs?.days ?? "?";
+            const meals = isRegenerate
+              ? "Regenerate one meal"
+              : [
+                  job.prefs?.includeBreakfast ? "Breakfast" : null,
+                  job.prefs?.includeLunch ? "Lunch" : null,
+                  job.prefs?.includeDinner ? "Dinner" : null,
+                ]
+                  .filter(Boolean)
+                  .join(", ");
             const statusLabel =
               status === "succeeded"
                 ? "Succeeded"
@@ -99,6 +104,7 @@
                 ? '<div class="jobs-error">Error: ' + job.error + "</div>"
                 : "";
             const openHref = "/index.html#job=" + encodeURIComponent(job.jobId);
+            const showOpenPlan = status === "succeeded" && !isRegenerate;
             return (
               '<div class="jobs-row">' +
               '<div class="jobs-main">' +
@@ -124,10 +130,12 @@
               error +
               "</div>" +
               '<div class="jobs-actions">' +
-              (status === "succeeded"
+              (showOpenPlan
                 ? '<a class="btn btn-kroger-cta" href="' +
                   openHref +
                   '">Open plan</a>'
+                : status === "succeeded" && isRegenerate
+                ? '<span class="jobs-meta">Open the home page to see your plan after regenerate.</span>'
                 : "") +
               "</div>" +
               "</div>"
