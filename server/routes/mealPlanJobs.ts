@@ -2,8 +2,8 @@
 import type { Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { buildMealPlanPrompt, mealPlanNumPredict } from "../../client/meal-plan.js";
-import { config } from "../config.js";
 import { logger } from "../logger.js";
+import { completeFeatherlessChat } from "../proxies/featherlessChat.js";
 import { resolveCognitoUserContext } from "../session/resolveContext.js";
 
 type JobStatus = "pending" | "running" | "succeeded" | "failed";
@@ -188,50 +188,13 @@ async function runMealPlanJob(job: MealPlanJob): Promise<void> {
       numPredict = mealPlanNumPredict(job.prefs);
     }
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (job.accessToken) {
-      headers.Authorization = `Bearer ${job.accessToken}`;
-    }
+    // Call Featherless in-process — never HTTP to APP_PUBLIC_URL / loopback.
+    // Self-fetch fails on Lightsail (hairpin NAT) and surfaces as Node "fetch failed".
+    const text = await completeFeatherlessChat({
+      messages: [{ role: "user", content: prompt }],
+      numPredict,
+    });
 
-    const response = await fetch(
-      config.appPublicUrl.replace(/\/+$/, "") + "/llm-api/api/chat",
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          messages: [{ role: "user", content: prompt }],
-          stream: false,
-          options: { num_predict: numPredict },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const body = await response.text();
-      job.status = "failed";
-      job.error = `HTTP ${response.status}: ${body.slice(0, 300)}`;
-      job.updatedAt = new Date().toISOString();
-      return;
-    }
-
-    const raw = await response.text();
-    let text = "";
-    for (const line of raw.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        const obj = JSON.parse(trimmed) as { message?: { content?: string }; error?: string };
-        if (obj.error) {
-          throw new Error(obj.error);
-        }
-        if (obj.message?.content) {
-          text += obj.message.content;
-        }
-      } catch {
-        // ignore lines that aren't JSON
-      }
-    }
-    
     job.status = "succeeded";
     job.resultText = text;
     job.updatedAt = new Date().toISOString();

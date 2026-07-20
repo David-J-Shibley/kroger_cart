@@ -363,6 +363,90 @@ async function runOneModelNonStream(
 }
 
 /**
+ * Server-side completion (no Express Response). Used by meal-plan jobs so they
+ * never HTTP-loopback to themselves (breaks behind Docker/Lightsail hairpin NAT).
+ */
+export async function completeFeatherlessChat(params: {
+  messages: unknown[];
+  numPredict?: number;
+}): Promise<string> {
+  if (!config.featherlessApiKey?.trim()) {
+    throw new Error("FEATHERLESS_API_KEY is not set — meal generation is disabled.");
+  }
+  if (!Array.isArray(params.messages)) {
+    throw new Error("Invalid request: messages must be an array");
+  }
+
+  const maxTokens =
+    typeof params.numPredict === "number" && Number.isFinite(params.numPredict)
+      ? Math.min(8192, Math.max(64, Math.round(params.numPredict)))
+      : 2048;
+
+  const url = `${config.featherlessApiBase}/chat/completions`;
+  const timeoutMs = config.llmUpstreamTimeoutMs;
+  const chain = config.llmModelsToTry;
+  let lastFailure: string | null = null;
+
+  for (let i = 0; i < chain.length; i++) {
+    const model = chain[i];
+    logger.info({ model, index: i + 1, total: chain.length }, "featherless_job_try_model");
+
+    try {
+      const upstream = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.featherlessApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: params.messages,
+          stream: false,
+          max_tokens: maxTokens,
+          temperature: 0.7,
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (!upstream.ok) {
+        const errText = await upstream.text();
+        lastFailure = errText.slice(0, 400) || `HTTP ${upstream.status}`;
+        if (!featherlessFailureIsRetryable(errText, upstream.status) || i === chain.length - 1) {
+          throw new Error(lastFailure);
+        }
+        continue;
+      }
+
+      const j = (await upstream.json()) as unknown;
+      const err = extractUpstreamErrorMessage(j);
+      if (err) {
+        lastFailure = err;
+        if (!featherlessFailureIsRetryable(err, undefined) || i === chain.length - 1) {
+          throw new Error(err);
+        }
+        continue;
+      }
+
+      const body = j as { choices?: Array<{ message?: { content?: string } }> };
+      const content = body.choices?.[0]?.message?.content ?? "";
+      if (typeof content === "string" && content.length > 0) {
+        return content;
+      }
+
+      lastFailure = "Empty completion from Featherless";
+      if (i === chain.length - 1) throw new Error(lastFailure);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      lastFailure = msg;
+      if (i === chain.length - 1) throw e instanceof Error ? e : new Error(msg);
+      logger.warn({ model, err: msg, nextModel: chain[i + 1] }, "featherless_job_fallback_next_model");
+    }
+  }
+
+  throw new Error(lastFailure ?? "All configured models failed.");
+}
+
+/**
  * POST /api/chat — call Featherless OpenAI-compatible API and stream NDJSON chunks the browser parses (newline JSON with message.content).
  * Model is chosen server-side from deploy-config.json `llmModels` (or `LLM_MODEL` if no deploy file); the client `model` field is ignored.
  * @see https://featherless.ai/docs/overview
